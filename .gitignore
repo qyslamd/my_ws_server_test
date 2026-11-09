@@ -1,0 +1,71 @@
+# ---------- Build output ----------
+/build/
+/out/
+/install/
+*.exe
+*.dll
+*.lib
+*.exp
+*.pdb
+*.ilk
+*.obj
+*.o
+*.idb
+*.tlog
+
+# ---------- CMake ----------
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+cmake_install.cmake
+install_manifest.txt
+*.cmake.stamp
+/build-*/
+
+# ---------- Ninja ----------
+.ninja_deps
+.ninja_log
+build.ninja
+rules.ninja
+
+# ---------- Visual Studio ----------
+.vs/
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.suo
+*.user
+ipch/
+Debug/
+Release/
+x64/
+x86/
+
+# ---------- Logs ----------
+*.log
+
+# ---------- 3rdparty（按需选择是否跟踪源码包）----------
+# 如果不想把第三方源码入库，取消下面两行注释
+# /3rdparty/libwebsockets-*/
+# /3rdparty/mongoose-*/
+
+# ---------- Editor / OS ----------
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*~
+
+# ---------- 3rdparty：只保留 mongoose 源码 ----------
+# 归档包不入库
+/3rdparty/*.tar.gz
+# 参考资料不入库
+/3rdparty/libwebsockets-*/
+/3rdparty/EngSketchPad-*/
+# mongoose 只保留顶层核心文件，忽略示例/测试子目录
+/3rdparty/mongoose-7.23/*/
+
+# ---------- 构建日志 ----------
+/build_log.txt
