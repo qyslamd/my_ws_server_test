@@ -51,7 +51,8 @@ if !errorlevel! neq 0 (
 if not exist "%BUILD_DIR%" mkdir "%BUILD_DIR%"
 
 cmake -S "%SCRIPT_DIR%." -B "%BUILD_DIR%" -G Ninja ^
-    -DCMAKE_BUILD_TYPE=%BUILD_TYPE%
+    -DCMAKE_BUILD_TYPE=%BUILD_TYPE% ^
+    -DCMAKE_POLICY_VERSION_MINIMUM=3.5
 
 if !errorlevel! neq 0 (
     echo [ERROR] CMake configure failed.
