@@ -29,4 +29,4 @@ add_custom_target(copy_www ALL
 # 子目标:mongoose 版与 libwebsockets 版双通道 WS 服务端
 # ============================================================
 add_subdirectory(apps/mongoose)
-add_subdirectory(apps/lws)
+#add_subdirectory(apps/lws)

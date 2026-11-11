@@ -12,42 +12,52 @@ enum { CONN_NONE = 0, CONN_STREAM = 1, CONN_CONTROL = 2 };
 static const double PI = 3.14159265358979323846;
 
 // ---------- 二进制帧构造 ----------
+// is_snapshot = true 时发送完整头(含 META)；false 时只发 DATA 和 TS
 static void build_waveform_frame(std::vector<uint8_t> &out, uint32_t stream_id,
-                                 uint32_t seq, double t, uint64_t ts_ns) {
+                                 uint32_t seq, double t, uint64_t ts_ns, bool is_snapshot) {
     const int N = 1024;
     const char *meta = "{\"kind\":\"waveform\",\"dataType\":\"float32\",\"components\":1,"
                        "\"count\":1024,\"unit\":\"V\",\"sampleRate\":1000}";
-    size_t metaLen = strlen(meta);
+    size_t metaLen = is_snapshot ? strlen(meta) : 0;
     size_t dataLen = N * sizeof(float);
-    size_t total = 12 + 4 + dataLen + 4 + metaLen + 4 + 8;
+    
+    // 分配空间
+    size_t total = 12 + 4 + dataLen + (is_snapshot ? (4 + metaLen) : 0) + 4 + 8;
     out.resize(total);
     uint8_t *p = out.data();
 
+    // 12字节定长头
     p[0] = 0xA5;
     p[1] = 0x01;
-    p[2] = 0x02;                    // DELTA
-    p[3] = 0x01 | 0x10 | 0x20;      // DATA | META | TS
+    p[2] = is_snapshot ? 0x01 : 0x02;  // Opcode: 0x01=SNAPSHOT, 0x02=DELTA
+    // Flags: bit0=DATA, bit4=META, bit5=TS
+    p[3] = 0x01 | 0x20 | (is_snapshot ? 0x10 : 0x00); 
     memcpy(p + 4, &stream_id, 4);
     memcpy(p + 8, &seq, 4);
     p += 12;
 
+    // 1. DATA Block
     uint32_t len = (uint32_t)dataLen;
     memcpy(p, &len, 4); p += 4;
     float *samples = (float *)p;
-    double freq = 50.0 + 20.0 * std::sin(2.0 * PI * 0.5 * t);  // 频率 30~70 Hz 摆动
+    double freq = 50.0 + 20.0 * std::sin(2.0 * PI * 0.5 * t);
     for (int i = 0; i < N; i++) {
         double tt = t + i / 1000.0;
         samples[i] = (float)std::sin(2.0 * PI * freq * tt);
     }
     p += dataLen;
 
-    len = (uint32_t)metaLen;
-    memcpy(p, &len, 4); p += 4;
-    memcpy(p, meta, metaLen);
+    // 2. META Block (仅 SNAPSHOT 发送)
+    if (is_snapshot) {
+        len = (uint32_t)metaLen;
+        memcpy(p, &len, 4); p += 4;
+        memcpy(p, meta, metaLen); p += metaLen;
+    }
 
+    // 3. TS Block
     len = 8;
-    memcpy(p + 4 + metaLen, &len, 4);
-    memcpy(p + 8 + metaLen, &ts_ns, 8);
+    memcpy(p, &len, 4); p += 4;
+    memcpy(p, &ts_ns, 8);
 }
 
 // ---------- 辅助函数:发送错误 ----------
@@ -171,9 +181,8 @@ void Mongoose_Server::handle_control_text(struct mg_connection *c, struct mg_ws_
     }
 }
 
-// ---------- 定时推流 ----------
+// ---------- 定时推流(实现 SNAPSHOT / DELTA 分离) ----------
 void Mongoose_Server::push_waveform() {
-    // 如果没有客户端订阅 stream 1，则直接返回
     if (stream_subscriber_counts_.count(1) == 0 || stream_subscriber_counts_[1] <= 0) {
         return;
     }
@@ -182,12 +191,24 @@ void Mongoose_Server::push_waveform() {
     double t = now_ms / 1000.0;
     uint64_t ts_ns = now_ms * 1000000ULL;
 
-    std::vector<uint8_t> frame;
-    build_waveform_frame(frame, 1, seq_++, t, ts_ns);
+    // 提前构造好这两帧，避免在循环里重复生成
+    std::vector<uint8_t> snap_frame;
+    build_waveform_frame(snap_frame, 1, seq_, t, ts_ns, true);
+    
+    std::vector<uint8_t> delta_frame;
+    build_waveform_frame(delta_frame, 1, seq_++, t, ts_ns, false);
 
     for (struct mg_connection *c = mgr_.conns; c != NULL; c = c->next) {
         if (c->is_websocket && c->data[0] == CONN_STREAM) {
-            mg_ws_send(c, frame.data(), frame.size(), WEBSOCKET_OP_BINARY);
+            // c->data[1] == 0 表示这个连接刚建立，还没发过快照
+            if (c->data[1] == 0) {
+                mg_ws_send(c, snap_frame.data(), snap_frame.size(), WEBSOCKET_OP_BINARY);
+                c->data[1] = 1; // 标记已发送 SNAPSHOT
+                MG_INFO(("Sent SNAPSHOT to stream client, size=%zu", snap_frame.size()));
+            } else {
+                // 之后只发不带 META 的 DELTA 帧，极大地节省带宽
+                mg_ws_send(c, delta_frame.data(), delta_frame.size(), WEBSOCKET_OP_BINARY);
+            }
         }
     }
 }
@@ -197,6 +218,7 @@ void Mongoose_Server::on_http_msg(struct mg_connection *c, struct mg_http_messag
     if (mg_strcmp(hm->uri, mg_str("/stream")) == 0) {
         ws_upgrade(c, hm);
         c->data[0] = CONN_STREAM;
+        c->data[1] = 0; // 新增：初始化快照标记
         MG_INFO(("upgrade /stream"));
         return;
     }

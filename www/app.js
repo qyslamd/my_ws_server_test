@@ -1,9 +1,4 @@
 // 双通道波形测试前端(mongoose / lws 两个服务端共用同一份)
-// 线路协议见 docs/ws-protocol.md:
-//   /control  文本通道(JSON 信封,双向)
-//   /stream   二进制通道(0xA5 帧,服务端单向推流)
-// 两个服务端均通过 Sec-WebSocket-Protocol 子协议区分通道。
-
 class WaveformClient {
   constructor({ canvasId = 'canvas', logId = 'log', statusId = 'status' } = {}) {
     this.canvas = document.getElementById(canvasId);
@@ -14,8 +9,9 @@ class WaveformClient {
     this.wsTxt = null;
     this.frameCount = 0;
     
-    // 新增：记录前端当前订阅的 streamId
     this.subscribedStreams = new Set();
+    // 新增：缓存每个 streamId 的 META 信息
+    this.metaCache = {}; 
   }
 
   log(msg) {
@@ -51,7 +47,6 @@ class WaveformClient {
     ctx.stroke();
   }
 
-  // 解析 0xA5 帧:固定头 12B + 按 flags 位序排列的 [len][data] 块
   onBinaryMessage(ev) {
     const buf = ev.data;
     if (!(buf instanceof ArrayBuffer)) return;
@@ -59,11 +54,11 @@ class WaveformClient {
     const dv = new DataView(buf);
     if (dv.getUint8(0) !== 0xA5) { this.log('bad magic'); return; }
     
+    const opcode   = dv.getUint8(2); // 取出 opcode 判断帧类型
     const flags    = dv.getUint8(3);
     const streamId = dv.getUint32(4, true);
     const seq      = dv.getUint32(8, true);
 
-    // 新增：本地过滤，服务端虽然广播了，但我没订阅的话直接丢弃
     if (!this.subscribedStreams.has(streamId)) {
       return;
     }
@@ -79,16 +74,30 @@ class WaveformClient {
       blocks[order[i]] = buf.slice(off, off + len); off += len;
     }
 
-    if (blocks.META) {
-      let meta;
-      try { meta = JSON.parse(new TextDecoder().decode(blocks.META)); }
-      catch (e) { this.log('bad meta: ' + e); return; }
-      if (meta.kind === 'waveform' && blocks.DATA) {
-        this.drawWaveform(blocks.DATA, meta);
-        this.frameCount++;
-        if (this.frameCount % 10 === 0) {
-          this.log('stream seq=' + seq + ' id=' + streamId + ' count=' + meta.count);
-        }
+    // 处理 SNAPSHOT (0x01) 或带有 META 的帧
+    if (opcode === 0x01 || blocks.META) {
+      try { 
+        const meta = JSON.parse(new TextDecoder().decode(blocks.META));
+        // 将 META 存入缓存
+        this.metaCache[streamId] = meta; 
+        this.log('Got SNAPSHOT (with META) for stream ' + streamId);
+      } catch (e) { 
+        this.log('bad meta: ' + e); return; 
+      }
+    }
+
+    // 处理数据绘制：从缓存里取 META
+    const meta = this.metaCache[streamId];
+    if (!meta) {
+      // 如果还没收到 SNAPSHOT 缓存就收到了 DELTA，说明异常（或者可以直接丢弃）
+      return; 
+    }
+
+    if (meta.kind === 'waveform' && blocks.DATA) {
+      this.drawWaveform(blocks.DATA, meta);
+      this.frameCount++;
+      if (this.frameCount % 10 === 0) {
+        this.log(`stream seq=${seq} id=${streamId} opcode=${opcode === 1 ? 'SNAP' : 'DELTA'}`);
       }
     }
   }
@@ -103,12 +112,8 @@ class WaveformClient {
       this.log('[control] open');
       this.wsTxt.send(JSON.stringify({v:1, type:'cmd', id:'c-0001', name:'hello',
         payload:{proto:1, client:'web/1.0.0', caps:['stream']}, ts: Date.now()}));
-      
-      // 只发一次订阅，订阅 streamId 为 1 的数据流
       this.wsTxt.send(JSON.stringify({v:1, type:'cmd', id:'c-0002', name:'subscribe',
         payload:{streams:[1]}, ts: Date.now()}));
-        
-      // 本地记录状态
       this.subscribedStreams.add(1);
     };
     this.wsTxt.onmessage = (ev) => this.log('[control] ' + ev.data);
@@ -127,23 +132,20 @@ class WaveformClient {
     if (this.wsBin) { this.wsBin.close(); this.wsBin = null; }
     if (this.wsTxt) { this.wsTxt.close(); this.wsTxt = null; }
     this.statusEl.textContent = '未连接';
-    this.subscribedStreams.clear(); // 清空本地订阅状态
+    this.subscribedStreams.clear();
+    this.metaCache = {}; // 断开连接清理缓存
   }
 
-  // 新增：前端主动退订接口
   unsubscribe(streamIds) {
     if (!this.wsTxt || this.wsTxt.readyState !== WebSocket.OPEN) return;
-    
-    // 发送退订指令给后端
     this.wsTxt.send(JSON.stringify({
       v: 1, type: 'cmd', id: 'c-' + Date.now(), name: 'unsubscribe',
       payload: { streams: streamIds }, ts: Date.now()
     }));
-    
-    // 移除本地状态
-    streamIds.forEach(s => this.subscribedStreams.delete(s));
-    
-    // 清空画布
+    streamIds.forEach(s => {
+      this.subscribedStreams.delete(s);
+      delete this.metaCache[s]; // 退订时清理缓存
+    });
     this.ctx.fillStyle = '#111';
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     this.log('unsubscribed from ' + streamIds.join(','));
