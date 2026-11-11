@@ -4,6 +4,7 @@
 #include <set>
 #include <string>
 #include <cstdint>
+#include <atomic>
 
 // 连接类型标签
 enum { CONN_NONE = 0, CONN_STREAM = 1, CONN_CONTROL = 2 };
@@ -43,6 +44,9 @@ private:
     struct mg_mgr mgr_;
     uint32_t seq_;
     bool listening_;
+    
+    // 采集状态机
+    std::atomic<bool> is_sampling_;
 
     // 基于 Session 的订阅管理
     std::map<std::string, std::set<uint32_t>> session_subscriptions_;

@@ -1,19 +1,21 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="utf-8">
-<title>双通道 WS 波形测试</title>
-<link rel="stylesheet" href="style.css">
+    <meta charset="utf-8">
+    <title>双通道波形测试</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<h2>双通道 WebSocket 波形测试</h2>
-<div>
-  <button id="btnConnect">连接</button>
-  <button id="btnDisconnect">断开</button>
-  <span id="status">未连接</span>
-</div>
-<canvas id="canvas" width="1024" height="240"></canvas>
-<pre id="log"></pre>
-<script src="app.js"></script>
+    <h2>双通道 WebSocket 波形测试</h2>
+    <div>
+        <button id="btnConnect">连接</button>
+        <button id="btnDisconnect">断开</button>
+        <button id="btnStart">开始采集</button> <!-- 新增按钮 -->
+        <span id="status">未连接</span>
+    </div>
+    <canvas id="canvas" width="1024" height="240"></canvas>
+    <pre id="log"></pre>
+    
+    <script src="app.js"></script>
 </body>
 </html>

@@ -11,13 +11,11 @@ using json = nlohmann::json;
 Mongoose_Server* Mongoose_Server::instance_ = nullptr;
 static const double PI = 3.14159265358979323846;
 
-// ---------- 从 URL 中提取 query 参数 (使用源码中正确的 API) ----------
+// ---------- 从 URL 中提取 query 参数 ----------
 static std::string get_query_param(struct mg_http_message *hm, const char *key) {
     char buf[64];
     int len = mg_http_get_var(&hm->query, key, buf, sizeof(buf));
-    if (len > 0) {
-        return std::string(buf, len);
-    }
+    if (len > 0) return std::string(buf, len);
     return "";
 }
 
@@ -106,6 +104,11 @@ void Mongoose_Server::handle_control_text(struct mg_connection *c, struct mg_ws_
             return;
         }
 
+        json resp = {
+            {"v", 1}, {"type", "ack"}, {"id", id}, 
+            {"payload", {{"ok", true}}}, {"ts", (long long)time(NULL) * 1000}
+        };
+
         if (name == "hello") {
             int client_proto = j.value("payload", json::object()).value("proto", 0);
             if (client_proto != 1) {
@@ -114,32 +117,42 @@ void Mongoose_Server::handle_control_text(struct mg_connection *c, struct mg_ws_
                 return;
             }
             ctx->is_handshaked = true; 
-            json resp = {
-                {"v", 1}, {"type", "ack"}, {"id", id}, {"name", "hello"},
-                {"payload", {
-                    {"proto", 1}, {"server", "ws-skeleton/1.0"},
-                    {"caps", {"stream", "snapshot"}}, {"session", ctx->session_id}
-                }}, {"ts", (long long)time(NULL) * 1000}
+            resp["name"] = "hello";
+            resp["payload"] = {
+                {"proto", 1}, {"server", "ws-skeleton/1.0"},
+                {"caps", {"stream", "snapshot"}}, {"session", ctx->session_id}
             };
-            std::string s = resp.dump();
-            mg_ws_send(c, s.c_str(), s.length(), WEBSOCKET_OP_TEXT);
         } 
+        else if (name == "start") {
+            // 开启采集状态，并重置所有数据通道的快照标志
+            is_sampling_ = true;
+            for (struct mg_connection *conn = mgr_.conns; conn != NULL; conn = conn->next) {
+                if (conn->is_websocket) {
+                    ClientContext* cctx = static_cast<ClientContext*>(conn->fn_data);
+                    if (cctx && cctx->conn_type == CONN_STREAM) {
+                        cctx->snapshot_sent = false; 
+                    }
+                }
+            }
+            resp["name"] = "start";
+            MG_INFO(("System status: SAMPLING STARTED"));
+        }
+        else if (name == "stop") {
+            // 停止采集状态
+            is_sampling_ = false;
+            resp["name"] = "stop";
+            MG_INFO(("System status: SAMPLING STOPPED"));
+        }
         else if (name == "subscribe") {
             if (j.contains("payload") && j["payload"].contains("streams")) {
                 for (auto& s : j["payload"]["streams"]) {
                     if (s.is_number()) {
                         uint32_t streamId = s.get<uint32_t>();
                         session_subscriptions_[ctx->session_id].insert(streamId);
-                        MG_INFO(("Session %s subscribed to stream=%u", ctx->session_id.c_str(), streamId));
                     }
                 }
             }
-            json resp = {
-                {"v", 1}, {"type", "ack"}, {"id", id}, {"name", "subscribe"},
-                {"payload", {{"ok", true}}}, {"ts", (long long)time(NULL) * 1000}
-            };
-            std::string s = resp.dump();
-            mg_ws_send(c, s.c_str(), s.length(), WEBSOCKET_OP_TEXT);
+            resp["name"] = "subscribe";
         } 
         else if (name == "unsubscribe") {
             if (j.contains("payload") && j["payload"].contains("streams")) {
@@ -152,24 +165,18 @@ void Mongoose_Server::handle_control_text(struct mg_connection *c, struct mg_ws_
                     }
                 }
             }
-            json resp = {
-                {"v", 1}, {"type", "ack"}, {"id", id}, {"name", "unsubscribe"},
-                {"payload", {{"ok", true}}}, {"ts", (long long)time(NULL) * 1000}
-            };
-            std::string s = resp.dump();
-            mg_ws_send(c, s.c_str(), s.length(), WEBSOCKET_OP_TEXT);
+            resp["name"] = "unsubscribe";
         } 
         else if (name == "ping") {
-            json resp = {
-                {"v", 1}, {"type", "ack"}, {"id", id}, {"name", "ping"},
-                {"payload", {}}, {"ts", (long long)time(NULL) * 1000}
-            };
-            std::string s = resp.dump();
-            mg_ws_send(c, s.c_str(), s.length(), WEBSOCKET_OP_TEXT);
+            resp["name"] = "ping";
         } 
         else {
             send_error(c, id, 1005, "unknown command");
+            return;
         }
+        
+        std::string s = resp.dump();
+        mg_ws_send(c, s.c_str(), s.length(), WEBSOCKET_OP_TEXT);
     } 
     catch (const json::parse_error& e) {
         send_error(c, "c-0000", 1001, "invalid JSON format");
@@ -182,19 +189,16 @@ void Mongoose_Server::handle_control_text(struct mg_connection *c, struct mg_ws_
 // ---------- 处理底层控制帧 (Pong 等) ----------
 void Mongoose_Server::on_ws_ctl(struct mg_connection *c, struct mg_ws_message *wm) {
     ClientContext* ctx = static_cast<ClientContext*>(c->fn_data);
-    if (!ctx) return;
-    
-    // 收到任何底层控制帧（包括 Pong），都刷新活跃时间
-    ctx->last_active_ms = mg_millis(); 
-
-    uint8_t opcode = wm->flags & 0x0F;
-    if (opcode == WEBSOCKET_OP_PONG) {
-        // MG_VERBOSE(("Got PONG from %d", ctx->conn_type));
+    if (ctx) {
+        ctx->last_active_ms = mg_millis(); 
     }
 }
 
 // ---------- 定时推流 ----------
 void Mongoose_Server::push_waveform() {
+    // 如果系统未开启采集，直接返回，不推流
+    if (!is_sampling_) return;
+
     bool has_subscriber = false;
     for (const auto& pair : session_subscriptions_) {
         if (pair.second.count(1)) { has_subscriber = true; break; }
@@ -243,13 +247,10 @@ void Mongoose_Server::ws_ping_timer(void *arg) {
         if (c->is_websocket) {
             ClientContext* ctx = static_cast<ClientContext*>(c->fn_data);
             if (ctx) {
-                // 如果超过 30 秒没有收到任何数据或 Pong（防呆判断，避免 now < last_active）
                 if (now > ctx->last_active_ms && now - ctx->last_active_ms > 30000) {
-                    MG_ERROR(("Client timeout, kicking (sid=%s, type=%d)", 
-                              ctx->session_id.c_str(), ctx->conn_type));
-                    c->is_closing = 1; // 踢下线，触发 MG_EV_CLOSE
+                    MG_ERROR(("Client timeout, kicking (sid=%s, type=%d)", ctx->session_id.c_str(), ctx->conn_type));
+                    c->is_closing = 1; 
                 } else {
-                    // 发送底层的 WebSocket Ping 帧（浏览器会自动回 Pong）
                     mg_ws_send(c, "", 0, WEBSOCKET_OP_PING);
                 }
             }
@@ -260,21 +261,16 @@ void Mongoose_Server::ws_ping_timer(void *arg) {
 // ---------- 路由与事件 ----------
 void Mongoose_Server::on_http_msg(struct mg_connection *c, struct mg_http_message *hm) {
     ClientContext* ctx = static_cast<ClientContext*>(c->fn_data);
-
-    // 用 mg_match 比较 URI，自动剥离 query 参数
     if (mg_match(hm->uri, mg_str("/stream"), NULL)) {
-        // 必须先给上下文赋值，再调用 ws_upgrade（它会同步触发 WS_OPEN）
         ctx->conn_type = CONN_STREAM;
         ctx->session_id = get_query_param(hm, "sid");
         ws_upgrade(c, hm);
-        MG_INFO(("upgrade /stream (sid=%s)", ctx->session_id.c_str()));
         return;
     }
     if (mg_match(hm->uri, mg_str("/control"), NULL)) {
         ctx->conn_type = CONN_CONTROL;
         ctx->session_id = get_query_param(hm, "sid");
         ws_upgrade(c, hm);
-        MG_INFO(("upgrade /control (sid=%s)", ctx->session_id.c_str()));
         return;
     }
     struct mg_http_serve_opts opts = {};
@@ -285,7 +281,7 @@ void Mongoose_Server::on_http_msg(struct mg_connection *c, struct mg_http_messag
 void Mongoose_Server::on_ws_msg(struct mg_connection *c, struct mg_ws_message *wm) {
     ClientContext* ctx = static_cast<ClientContext*>(c->fn_data);
     if (ctx) {
-        ctx->last_active_ms = mg_millis(); // 收到应用层消息，刷新时间
+        ctx->last_active_ms = mg_millis(); 
         if (ctx->conn_type == CONN_CONTROL) {
             handle_control_text(c, wm);
         }
@@ -296,7 +292,6 @@ void Mongoose_Server::event_fn(struct mg_connection *c, int ev, void *ev_data) {
     Mongoose_Server *self = Mongoose_Server::instance_;
     ClientContext* ctx = static_cast<ClientContext*>(c->fn_data);
 
-    // === 核心修复：在连接建立瞬间，初始化时间戳 ===
     if (ev == MG_EV_OPEN) {
         ClientContext* new_ctx = new ClientContext();
         new_ctx->last_active_ms = mg_millis(); 
@@ -307,17 +302,15 @@ void Mongoose_Server::event_fn(struct mg_connection *c, int ev, void *ev_data) {
     if (ev == MG_EV_HTTP_MSG) {
         self->on_http_msg(c, static_cast<struct mg_http_message *>(ev_data));
     } else if (ev == MG_EV_WS_OPEN) {
-        ctx->last_active_ms = mg_millis(); // 握手成功，再次刷新
+        ctx->last_active_ms = mg_millis(); 
     } else if (ev == MG_EV_WS_MSG) {
         self->on_ws_msg(c, static_cast<struct mg_ws_message *>(ev_data));
     } else if (ev == MG_EV_WS_CTL) {
-        // 拦截底层 Pong 帧
         self->on_ws_ctl(c, static_cast<struct mg_ws_message *>(ev_data));
     } else if (ev == MG_EV_CLOSE) {
         if (ctx) {
             if (ctx->conn_type == CONN_CONTROL) {
                 self->session_subscriptions_.erase(ctx->session_id);
-                MG_INFO(("Cleaned up subscriptions for sid=%s", ctx->session_id.c_str()));
             }
             delete ctx;
             c->fn_data = nullptr;
@@ -330,13 +323,11 @@ void Mongoose_Server::push_timer(void *arg) {
 }
 
 Mongoose_Server::Mongoose_Server(const char *listen_url)
-    : listen_url_(listen_url), seq_(0), listening_(false) {
+    : listen_url_(listen_url), seq_(0), listening_(false), is_sampling_(false) {
     instance_ = this;
     mg_mgr_init(&mgr_);
-
-     // === 新增：设置日志等级 ===
-    // 设为 MG_LL_INFO 即可屏蔽底层 write_conn 的刷屏，但保留你写的 upgrade / subscribe 等重要日志
-    // 设为 MG_LL_ERROR 则只打印错误
+    
+    // 设置日志等级，屏蔽底层收发报文
     mg_log_set(MG_LL_INFO);
 
     if (mg_http_listen(&mgr_, listen_url_, &event_fn, this) == NULL) {
@@ -344,9 +335,7 @@ Mongoose_Server::Mongoose_Server(const char *listen_url)
     } else {
         listening_ = true;
         MG_INFO(("Listening on %s", listen_url_));
-        // 100ms 推流定时器
         mg_timer_add(&mgr_, 100, MG_TIMER_REPEAT, &push_timer, this);
-        // 10 秒底层 Ping 探活定时器
         mg_timer_add(&mgr_, 10000, MG_TIMER_REPEAT, &ws_ping_timer, this);
     }
 }
