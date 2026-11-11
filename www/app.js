@@ -13,6 +13,9 @@ class WaveformClient {
     this.wsBin = null;
     this.wsTxt = null;
     this.frameCount = 0;
+    
+    // 新增：记录前端当前订阅的 streamId
+    this.subscribedStreams = new Set();
   }
 
   log(msg) {
@@ -55,11 +58,15 @@ class WaveformClient {
     if (buf.byteLength < 12) return;
     const dv = new DataView(buf);
     if (dv.getUint8(0) !== 0xA5) { this.log('bad magic'); return; }
-    const ver      = dv.getUint8(1);
-    const opcode   = dv.getUint8(2);
+    
     const flags    = dv.getUint8(3);
     const streamId = dv.getUint32(4, true);
     const seq      = dv.getUint32(8, true);
+
+    // 新增：本地过滤，服务端虽然广播了，但我没订阅的话直接丢弃
+    if (!this.subscribedStreams.has(streamId)) {
+      return;
+    }
 
     let off = 12;
     const blocks = {};
@@ -96,8 +103,13 @@ class WaveformClient {
       this.log('[control] open');
       this.wsTxt.send(JSON.stringify({v:1, type:'cmd', id:'c-0001', name:'hello',
         payload:{proto:1, client:'web/1.0.0', caps:['stream']}, ts: Date.now()}));
+      
+      // 只发一次订阅，订阅 streamId 为 1 的数据流
       this.wsTxt.send(JSON.stringify({v:1, type:'cmd', id:'c-0002', name:'subscribe',
-        payload:{streams:['waveform']}, ts: Date.now()}));
+        payload:{streams:[1]}, ts: Date.now()}));
+        
+      // 本地记录状态
+      this.subscribedStreams.add(1);
     };
     this.wsTxt.onmessage = (ev) => this.log('[control] ' + ev.data);
     this.wsTxt.onclose = () => this.log('[control] closed');
@@ -115,6 +127,26 @@ class WaveformClient {
     if (this.wsBin) { this.wsBin.close(); this.wsBin = null; }
     if (this.wsTxt) { this.wsTxt.close(); this.wsTxt = null; }
     this.statusEl.textContent = '未连接';
+    this.subscribedStreams.clear(); // 清空本地订阅状态
+  }
+
+  // 新增：前端主动退订接口
+  unsubscribe(streamIds) {
+    if (!this.wsTxt || this.wsTxt.readyState !== WebSocket.OPEN) return;
+    
+    // 发送退订指令给后端
+    this.wsTxt.send(JSON.stringify({
+      v: 1, type: 'cmd', id: 'c-' + Date.now(), name: 'unsubscribe',
+      payload: { streams: streamIds }, ts: Date.now()
+    }));
+    
+    // 移除本地状态
+    streamIds.forEach(s => this.subscribedStreams.delete(s));
+    
+    // 清空画布
+    this.ctx.fillStyle = '#111';
+    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    this.log('unsubscribed from ' + streamIds.join(','));
   }
 }
 

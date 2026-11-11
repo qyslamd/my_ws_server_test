@@ -66,6 +66,7 @@ Thumbs.db
 /3rdparty/EngSketchPad-*/
 # mongoose 只保留顶层核心文件，忽略示例/测试子目录
 /3rdparty/mongoose-7.23/*/
+/3rdparty/json-3.12.0/
 
 # ---------- 构建日志 ----------
 /build_log.txt

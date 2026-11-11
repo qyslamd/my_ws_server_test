@@ -1,13 +1,14 @@
 #include "mongoose_server.h"
-
+#include "nlohmann/json.hpp"
 #include <cmath>
 #include <cstring>
 #include <string>
 #include <vector>
 
+using json = nlohmann::json;
+
 // 连接类型标签(存于 c->data[0])
 enum { CONN_NONE = 0, CONN_STREAM = 1, CONN_CONTROL = 2 };
-
 static const double PI = 3.14159265358979323846;
 
 // ---------- 二进制帧构造 ----------
@@ -49,56 +50,20 @@ static void build_waveform_frame(std::vector<uint8_t> &out, uint32_t stream_id,
     memcpy(p + 8 + metaLen, &ts_ns, 8);
 }
 
-// ---------- 极简 JSON 字段提取(仅字符串值,用于骨架)----------
-static std::string json_get_str(const std::string &s, const std::string &key) {
-    std::string pat = "\"" + key + "\":\"";
-    size_t p = s.find(pat);
-    if (p == std::string::npos) return "";
-    p += pat.size();
-    size_t e = s.find('"', p);
-    if (e == std::string::npos) return "";
-    return s.substr(p, e - p);
+// ---------- 辅助函数:发送错误 ----------
+static void send_error(struct mg_connection *c, const std::string& id, int code, const std::string& msg) {
+    json resp = {
+        {"v", 1}, {"type", "err"}, {"id", id}, {"name", "error"},
+        {"payload", {{"code", code}, {"msg", msg}}}, {"ts", 0}
+    };
+    std::string s = resp.dump();
+    mg_ws_send(c, s.c_str(), s.length(), WEBSOCKET_OP_TEXT);
 }
 
-void Mongoose_Server::handle_control_text(struct mg_connection *c, struct mg_ws_message *wm) {
-    std::string msg(wm->data.buf, wm->data.len);
-    std::string name = json_get_str(msg, "name");
-    std::string id = json_get_str(msg, "id");
-    if (id.empty()) id = "c-0000";
-
-    std::string resp;
-    if (name == "hello") {
-        resp = "{\"v\":1,\"type\":\"ack\",\"id\":\"" + id +
-               "\",\"name\":\"hello\",\"payload\":{\"proto\":1,"
-               "\"server\":\"ws-skeleton/1.0\",\"caps\":[\"stream\",\"snapshot\"],"
-               "\"session\":\"s-001\"},\"ts\":0}";
-    } else if (name == "subscribe") {
-        resp = "{\"v\":1,\"type\":\"ack\",\"id\":\"" + id +
-               "\",\"name\":\"subscribe\",\"payload\":{\"ok\":true},\"ts\":0}";
-    } else if (name == "unsubscribe") {
-        resp = "{\"v\":1,\"type\":\"ack\",\"id\":\"" + id +
-               "\",\"name\":\"unsubscribe\",\"payload\":{\"ok\":true},\"ts\":0}";
-    } else if (name == "ping") {
-        resp = "{\"v\":1,\"type\":\"ack\",\"id\":\"" + id +
-               "\",\"name\":\"ping\",\"payload\":{},\"ts\":0}";
-    } else {
-        resp = "{\"v\":1,\"type\":\"err\",\"id\":\"" + id + "\",\"name\":\"" +
-               (name.empty() ? std::string("unknown") : name) +
-               "\",\"payload\":{\"code\":1005,\"msg\":\"unknown command\"},\"ts\":0}";
-    }
-    mg_ws_send(c, resp.data(), resp.size(), WEBSOCKET_OP_TEXT);
-    MG_INFO(("control rx: name=%s id=%s", name.empty() ? "(empty)" : name.c_str(), id.c_str()));
-}
-
-// ---------- WebSocket 升级(子协议白名单校验)----------
-// 浏览器要求 101 响应中的 Sec-WebSocket-Protocol 必须与请求匹配;
-// mongoose 的 ws_handshake 已自动回显该头,这里绝不能再手动追加
-// (否则产生重复头,浏览器会拒绝连接,.NET 客户端却容忍——易漏测)。
-// 文档规范:请求的子协议不在支持列表时,返回 400 拒绝升级。
+// ---------- WebSocket 升级(子协议白名单校验) ----------
 void Mongoose_Server::ws_upgrade(struct mg_connection *c, struct mg_http_message *hm) {
     struct mg_str *sp = mg_http_get_header(hm, "Sec-WebSocket-Protocol");
     if (sp != NULL) {
-        // 客户端请求的是逗号分隔列表;逐个与支持的子协议精确比对
         bool supported = false;
         size_t i = 0;
         while (i < sp->len) {
@@ -122,7 +87,97 @@ void Mongoose_Server::ws_upgrade(struct mg_connection *c, struct mg_http_message
     mg_ws_upgrade(c, hm, NULL);
 }
 
+// ---------- 业务:处理控制通道文本指令 ----------
+void Mongoose_Server::handle_control_text(struct mg_connection *c, struct mg_ws_message *wm) {
+    std::string msg(wm->data.buf, wm->data.len);
+    try {
+        auto j = json::parse(msg);
+        std::string type = j.value("type", "");
+        std::string name = j.value("name", "");
+        std::string id = j.value("id", "c-0000");
+
+        if (type != "cmd") {
+            send_error(c, id, 1001, "must be cmd type");
+            return;
+        }
+
+        if (name == "hello") {
+            json resp = {
+                {"v", 1}, {"type", "ack"}, {"id", id}, {"name", "hello"},
+                {"payload", {
+                    {"proto", 1}, {"server", "ws-skeleton/1.0"},
+                    {"caps", {"stream", "snapshot"}}, {"session", "s-001"}
+                }}, {"ts", 0}
+            };
+            std::string s = resp.dump();
+            mg_ws_send(c, s.c_str(), s.length(), WEBSOCKET_OP_TEXT);
+        } 
+        else if (name == "subscribe") {
+            if (j.contains("payload") && j["payload"].contains("streams")) {
+                for (auto& s : j["payload"]["streams"]) {
+                    if (s.is_number()) {
+                        uint32_t streamId = s.get<uint32_t>();
+                        stream_subscriber_counts_[streamId]++;
+                        MG_INFO(("Subscribe: stream=%u, current subscribers=%d", 
+                                 streamId, stream_subscriber_counts_[streamId]));
+                    }
+                }
+            }
+            json resp = {
+                {"v", 1}, {"type", "ack"}, {"id", id}, {"name", "subscribe"},
+                {"payload", {{"ok", true}}}, {"ts", 0}
+            };
+            std::string s = resp.dump();
+            mg_ws_send(c, s.c_str(), s.length(), WEBSOCKET_OP_TEXT);
+        } 
+        else if (name == "unsubscribe") {
+            if (j.contains("payload") && j["payload"].contains("streams")) {
+                for (auto& s : j["payload"]["streams"]) {
+                    if (s.is_number()) {
+                        uint32_t streamId = s.get<uint32_t>();
+                        if (stream_subscriber_counts_.count(streamId) > 0) {
+                            stream_subscriber_counts_[streamId]--;
+                            if (stream_subscriber_counts_[streamId] <= 0) {
+                                stream_subscriber_counts_.erase(streamId);
+                            }
+                        }
+                        MG_INFO(("Unsubscribe: stream=%u, current subscribers=%d", 
+                                 streamId, stream_subscriber_counts_.count(streamId) ? stream_subscriber_counts_[streamId] : 0));
+                    }
+                }
+            }
+            json resp = {
+                {"v", 1}, {"type", "ack"}, {"id", id}, {"name", "unsubscribe"},
+                {"payload", {{"ok", true}}}, {"ts", 0}
+            };
+            std::string s = resp.dump();
+            mg_ws_send(c, s.c_str(), s.length(), WEBSOCKET_OP_TEXT);
+        } 
+        else if (name == "ping") {
+            json resp = {
+                {"v", 1}, {"type", "ack"}, {"id", id}, {"name", "ping"},
+                {"payload", {}}, {"ts", 0}
+            };
+            std::string s = resp.dump();
+            mg_ws_send(c, s.c_str(), s.length(), WEBSOCKET_OP_TEXT);
+        } 
+        else {
+            send_error(c, id, 1005, "unknown command");
+        }
+    } 
+    catch (const std::exception& e) {
+        MG_ERROR(("JSON parse error: %s", e.what()));
+        send_error(c, "c-0000", 1001, "invalid JSON");
+    }
+}
+
+// ---------- 定时推流 ----------
 void Mongoose_Server::push_waveform() {
+    // 如果没有客户端订阅 stream 1，则直接返回
+    if (stream_subscriber_counts_.count(1) == 0 || stream_subscriber_counts_[1] <= 0) {
+        return;
+    }
+
     uint64_t now_ms = mg_millis();
     double t = now_ms / 1000.0;
     uint64_t ts_ns = now_ms * 1000000ULL;
@@ -137,6 +192,7 @@ void Mongoose_Server::push_waveform() {
     }
 }
 
+// ---------- 路由与事件 ----------
 void Mongoose_Server::on_http_msg(struct mg_connection *c, struct mg_http_message *hm) {
     if (mg_strcmp(hm->uri, mg_str("/stream")) == 0) {
         ws_upgrade(c, hm);
@@ -150,7 +206,6 @@ void Mongoose_Server::on_http_msg(struct mg_connection *c, struct mg_http_messag
         MG_INFO(("upgrade /control"));
         return;
     }
-    // 其余路径:从 www/ 目录提供静态文件(index.html 为默认页)
     struct mg_http_serve_opts opts = {};
     opts.root_dir = "www";
     mg_http_serve_dir(c, hm, &opts);
@@ -160,11 +215,9 @@ void Mongoose_Server::on_ws_msg(struct mg_connection *c, struct mg_ws_message *w
     if (c->data[0] == CONN_CONTROL) {
         handle_control_text(c, wm);
     }
-    // stream 通道收到前端消息:防御性丢弃,不处理
 }
 
 void Mongoose_Server::event_fn(struct mg_connection *c, int ev, void *ev_data) {
-    // fn_data 在 mg_http_listen 时绑定为本实例
     Mongoose_Server *self = static_cast<Mongoose_Server *>(c->fn_data);
 
     if (ev == MG_EV_HTTP_MSG) {

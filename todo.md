@@ -81,3 +81,11 @@
 - [ ] lws 版多客户端推流(单一 stream_wsi_ 成员,后连者抢走推送目标;
       可用 lws_callback_on_writable_all_protocol)
 - [ ] 两版共用协议层后(见上),删除各自残留的重复实现
+
+
+## 协议改进记录
+```txt
+A. 实现协议里的“握手鉴权”与“订阅机制”：把现在“无脑广播”的代码改掉，只有发过 subscribe 的客户端，才能收到数据，不订阅的连一个字节都收不到。
+B. 引入 cJSON 完善 /control 的状态机：严格按文档 3.2 和 5.1 实现，处理 start / stop / set_param 指令，如果参数不合法，按你的错误码返回 err。
+C. 优化二进制帧（实现 SNAPSHOT 与 DELTA 分离）：落实上面提到的“META 只在 SNAPSHOT 发一次”的优化。
+```
