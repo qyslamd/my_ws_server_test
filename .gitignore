@@ -45,11 +45,6 @@ x86/
 # ---------- Logs ----------
 *.log
 
-# ---------- 3rdparty（按需选择是否跟踪源码包）----------
-# 如果不想把第三方源码入库，取消下面两行注释
-# /3rdparty/libwebsockets-*/
-# /3rdparty/mongoose-*/
-
 # ---------- Editor / OS ----------
 .DS_Store
 Thumbs.db
@@ -62,11 +57,14 @@ Thumbs.db
 # 归档包不入库
 /3rdparty/*.tar.gz
 # 参考资料不入库
-/3rdparty/libwebsockets-*/
 /3rdparty/EngSketchPad-*/
 # mongoose 只保留顶层核心文件，忽略示例/测试子目录
 /3rdparty/mongoose-7.23/*/
+# nlohmann/json：只跟踪 vendored 单头文件与许可证，其余一律忽略
 /3rdparty/json-3.12.0/
+/3rdparty/nlohmann/*
+!/3rdparty/nlohmann/json.hpp
+!/3rdparty/nlohmann/LICENSE.MIT
 
 # ---------- 构建日志 ----------
 /build_log.txt

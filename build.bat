@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 chcp 936 >nul
 
 :: ============================================================
-:: Build ws demos: mongoose_demo + lws_demo (VS2019 x64 + Ninja)
+:: Build ws demo: mongoose_demo (VS2019 x64 + Ninja)
 :: ============================================================
 
 set "SCRIPT_DIR=%~dp0"

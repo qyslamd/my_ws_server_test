@@ -1,4 +1,4 @@
-/* 双通道 WS 波形测试页样式(mongoose / lws 两个服务端共用) */
+/* 双通道 WS 波形测试页样式(mongoose 服务端) */
 body {
   font-family: monospace;
   background: #1e1e1e;

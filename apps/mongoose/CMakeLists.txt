@@ -4,7 +4,9 @@
 # 静态页面从 www/ 目录提供(见 main.cpp 的 mg_http_serve_dir)
 # ============================================================
 set(MONGOOSE_DIR "${CMAKE_SOURCE_DIR}/3rdparty/mongoose-7.23")
-set(JSON_DIR "${CMAKE_SOURCE_DIR}/3rdparty/json-3.12.0/include")
+# nlohmann/json 以 vendored 单头文件形式入库(3rdparty/nlohmann/json.hpp),
+# 不依赖本地解压的完整源码包
+set(JSON_DIR "${CMAKE_SOURCE_DIR}/3rdparty")
 
 add_library(mongoose STATIC "${MONGOOSE_DIR}/mongoose.c")
 target_include_directories(mongoose PUBLIC "${MONGOOSE_DIR}")
