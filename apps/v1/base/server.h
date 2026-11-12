@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <cstdint>
 #include <map>
 #include <string>
@@ -20,6 +21,10 @@ class V1Server {
  public:
   explicit V1Server(int port, bool auth_required = false);
   ~V1Server();
+  // Run() = Start() + 事件循环；桌面客户端里主线程要交给 CEF，
+  // 所以把这两步拆开，服务端在自己的线程里跑。
+  bool Start();
+  void Stop();
   void Run();
 
   void RegisterModule(Module* module);
@@ -79,6 +84,7 @@ class V1Server {
   int port_;
   bool auth_required_ = false;
   mg_mgr* mgr_ = nullptr;
+  std::atomic<bool> running_{false};
   uint64_t started_ms_ = 0;
 
   std::map<std::string, Module*> modules_;

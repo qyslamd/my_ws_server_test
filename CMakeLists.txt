@@ -34,3 +34,26 @@ add_subdirectory(apps/mongoose)
 # 子目标:v1 业务无关通讯底座(纯 C/C++,零 Qt)
 # ============================================================
 add_subdirectory(apps/v1)
+
+# ============================================================
+# 子目标:EPH205 桌面客户端(CEF)
+#
+# CEF 二进制放在 3rdparty/cef-109(不入库),默认不参与构建:
+#   cmake -DEPH205_BUILD_CLIENT=ON ...
+# ============================================================
+option(EPH205_BUILD_CLIENT "构建 CEF 桌面客户端(需要 3rdparty/cef-109)" OFF)
+
+if(EPH205_BUILD_CLIENT)
+  if(NOT EXISTS "${CMAKE_SOURCE_DIR}/3rdparty/cef-109/cmake/FindCEF.cmake")
+    message(FATAL_ERROR
+      "找不到 CEF: ${CMAKE_SOURCE_DIR}/3rdparty/cef-109
+"
+      "把 CEF 109 的二进制约解压到 3rdparty/cef-109 后再开 EPH205_BUILD_CLIENT。")
+  endif()
+  set(CEF_ROOT "${CMAKE_SOURCE_DIR}/3rdparty/cef-109" CACHE PATH "CEF binary distribution")
+  list(APPEND CMAKE_MODULE_PATH "${CEF_ROOT}/cmake")
+  find_package(CEF REQUIRED)
+  # wrapper 从源码编译，保证和我们的 CRT/编译选项一致
+  add_subdirectory(${CEF_LIBCEF_DLL_WRAPPER_PATH} libcef_dll_wrapper EXCLUDE_FROM_ALL)
+  add_subdirectory(apps/eph205_client)
+endif()

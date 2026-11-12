@@ -46,8 +46,7 @@ endif()
 # ------------------------------------------------------------
 # EPH205 业务模块（com0com 仿真 + 串口客户端）
 # ------------------------------------------------------------
-add_executable(eph205_server
-  modules/eph205/main_eph205.cpp
+add_library(eph205_module STATIC
   modules/eph205/eph205_module.cpp
   modules/eph205/eph205_module.h
   modules/eph205/eph205_client.cpp
@@ -64,9 +63,16 @@ add_executable(eph205_server
   modules/eph205/win_registry.h
 )
 
-target_link_libraries(eph205_server PRIVATE v1_base)
+target_link_libraries(eph205_module PUBLIC v1_base)
 if(MSVC)
   # advapi32 用于注册表枚举串口
-  target_link_libraries(eph205_server PRIVATE advapi32)
+  target_link_libraries(eph205_module PUBLIC advapi32)
+  target_compile_options(eph205_module PRIVATE /utf-8 /W4 /WX-)
+endif()
+
+# 服务端形态：底座 + 模块 + main
+add_executable(eph205_server modules/eph205/main_eph205.cpp)
+target_link_libraries(eph205_server PRIVATE eph205_module)
+if(MSVC)
   target_compile_options(eph205_server PRIVATE /utf-8 /W4 /WX-)
 endif()

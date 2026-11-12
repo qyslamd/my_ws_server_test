@@ -131,17 +131,30 @@ void V1Server::Log(const std::string& msg) {
   MG_INFO(("v1: %s", msg.c_str()));
 }
 
-void V1Server::Run() {
+bool V1Server::Start() {
   mg_log_set(MG_LL_ERROR);
   const std::string url = "http://127.0.0.1:" + std::to_string(port_);
   if (mg_http_listen(mgr_, url.c_str(), EventFn, this) == nullptr) {
     MG_ERROR(("cannot listen on %s", url.c_str()));
-    return;
+    return false;
   }
   Log("listening on " + url);
   mg_timer_add(mgr_, 10, MG_TIMER_REPEAT, TickFn, this);
   mg_timer_add(mgr_, 5000, MG_TIMER_REPEAT, PingFn, this);
-  for (;;) {
+  running_.store(true);
+  return true;
+}
+
+void V1Server::Stop() {
+  // 事件循环每 10 ms 醒一次，置位后最多 10 ms 就会退出
+  running_.store(false);
+}
+
+void V1Server::Run() {
+  if (!running_.load() && !Start()) {
+    return;
+  }
+  while (running_.load()) {
     mg_mgr_poll(mgr_, 10);
   }
 }
