@@ -91,15 +91,19 @@ void WriteClientLog(const char* text) {
 void MainWindow::Log(const char* text) { WriteClientLog(text); }
 
 void MainWindow::RequestClose() {
-  Log(closing_ ? "RequestClose(2nd)" : "RequestClose");
-  // 第一次：让 CEF 关浏览器，它会回调 DoClose，之后 CEF 再给窗口发一次 WM_CLOSE；
-  // 第二次：浏览器已经同意关闭，真正销毁父窗口（子窗口跟着没，OnBeforeClose 才会来）。
-  if (!closing_ && browser_ && browser_->GetHost()) {
-    closing_ = true;
+  Log("RequestClose");
+  // 只负责把关闭请求交给 CEF；真正的销毁在 DoClose 里做
+  if (browser_ && browser_->GetHost()) {
     browser_->GetHost()->CloseBrowser(true);
     return;
   }
   Destroy();
+}
+
+void MainWindow::PostDestroy() {
+  if (hwnd_) {
+    PostMessageW(hwnd_, WM_APP + 1, 0, 0);
+  }
 }
 
 void MainWindow::Destroy() {
@@ -127,8 +131,15 @@ LRESULT MainWindow::HandleMessage(HWND hwnd, UINT message, WPARAM wparam, LPARAM
     }
 
     case WM_CLOSE:
+      // 对应 YiGuai 的 closeEvent：只是"请求关闭"，转给 CEF，
+      // 窗口等 DoClose 里再销毁
       Log("WM_CLOSE");
       RequestClose();
+      return 0;
+
+    case WM_APP + 1:
+      Log("WM_APP_CLOSE");
+      Destroy();
       return 0;
 
     case WM_DESTROY:

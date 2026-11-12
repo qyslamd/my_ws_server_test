@@ -555,6 +555,59 @@ Destroy();                                    // 第二次：真正销毁父窗�
 `WM_NCCREATE` 里存完 `this` 就 `return TRUE`，跳过了默认处理，创建期间那次
 `WM_SETTEXT` 落空。改成交给 `DefWindowProcW`，创建后再显式 `SetWindowTextW` 兜底。
 
+### 参考：YiGuai（Qt 嵌入 CEF，多窗口）怎么做的
+
+`D:\workspace\self\works\workspace\YiGuai` 是同类场景的成熟实现，关窗做法值得照抄：
+
+```cpp
+// cef_client_handler.cpp
+bool CefClientHandler::DoClose(CefRefPtr<CefBrowser> browser) {
+    NotifyBrowserClosing(browser);
+#ifdef Q_OS_LINUX
+    return false;
+#else
+    return true;   // Windows：别再给顶层窗口发关闭事件，窗口我们自己销毁
+#endif
+}
+
+void CefQWidget::OnBrowserClosing(CefRefPtr<CefBrowser>) {
+    is_closing_ = true;
+    emit browserClosing();
+    close();                        // 第二次 close() 才会真的关
+}
+
+void CefQWidget::closeEvent(QCloseEvent *event) {
+    if (!is_closing_) {
+        browser_->GetHost()->CloseBrowser(false);   // 先问浏览器
+        event->ignore();                            // 本轮不关
+    }
+}
+```
+
+要点：
+
+1. **Windows 上 `DoClose` 返回 true**。返回 false 会让 CEF 给顶层窗口再发一次关闭事件；
+   多窗口时这是灾难——你不知道那个事件会落到哪个窗口上，容易误关。
+2. **关闭走两轮**：第一轮只发 `CloseBrowser`，并 `ignore()` 掉这次关闭；
+   `DoClose` 回调里置标记并主动 `close()`，第二轮才真正销毁。
+3. **`gBrowserCount` 静态计数**：`OnAfterCreated` 加一、`OnBeforeClose` 减一，
+   全部关完才算程序退出。多窗口时靠它判断"最后一个走了没有"。
+
+我们据此改成了同一套（单窗口，计数退化为 1）：
+
+```cpp
+bool ClientHandler::DoClose(...) {
+  window_->PostDestroy();   // 延后一拍 DestroyWindow（对齐 Qt 的 close() 时序）
+  return true;              // 不让 CEF 再发 WM_CLOSE
+}
+
+// WM_CLOSE：只把请求转给浏览器，不销毁窗口（对应 event->ignore()）
+// WM_APP+1：DoClose 里 Post 过来的，真正 DestroyWindow
+```
+
+实测点 X 后 0.4 秒退出：`WM_CLOSE → DoClose → WM_APP_CLOSE → Destroy →
+WM_DESTROY → OnBeforeClose`。以后要加多窗口，只需把 `gBrowserCount` 那套计数搬过来。
+
 ### 截图怎么抓的
 
 `PrintWindow` 抓不到 CEF 的 GPU 合成内容（只能拍到白底 + 标题栏）。

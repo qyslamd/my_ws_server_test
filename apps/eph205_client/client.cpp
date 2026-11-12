@@ -93,8 +93,13 @@ void ClientHandler::OnAfterCreated(CefRefPtr<CefBrowser> browser) {
 
 bool ClientHandler::DoClose(CefRefPtr<CefBrowser> browser) {
   WriteClientLog("DoClose");
-  // 交给默认流程：CEF 关闭浏览器后回调 OnBeforeClose，我们在那里收尾
-  return false;
+  // 学 YiGuai：Windows 上返回 true，告诉 CEF"别再给顶层窗口发关闭事件了"，
+  // 窗口由我们自己销毁。Qt 版在这里调 close()，我们延后一拍 DestroyWindow。
+  // 多窗口场景下返回 false 会让 CEF 逐个给顶层窗口发关闭事件，容易误关别的窗口。
+  if (window_) {
+    window_->PostDestroy();
+  }
+  return true;
 }
 
 void ClientHandler::OnBeforeClose(CefRefPtr<CefBrowser> browser) {

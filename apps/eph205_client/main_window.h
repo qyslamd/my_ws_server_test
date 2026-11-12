@@ -27,6 +27,8 @@ class MainWindow {
 
   // 关窗：先让浏览器关，浏览器关了再真正销毁窗口
   void RequestClose();
+  // 延后一拍销毁（对齐 Qt 版 DoClose 里 close() 的时序，避免在 CEF 回调里重入）
+  void PostDestroy();
   void Destroy();
 
  private:
