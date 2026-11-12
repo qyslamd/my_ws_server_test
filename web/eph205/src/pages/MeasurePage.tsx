@@ -15,6 +15,7 @@ import {
 } from 'antd'
 import { DownloadOutlined, UploadOutlined } from '@ant-design/icons'
 import { api, type JobProgress } from '../api'
+import LiveReadings, { type LivePoint } from '../components/LiveReadings'
 import {
   RESULT_TEXT,
   REASON_TEXT,
@@ -71,6 +72,7 @@ export default function MeasurePage({
   const [summary, setSummary] = useState<any>(null)
   const [recordId, setRecordId] = useState<number | null>(null)
   const [onlyFail, setOnlyFail] = useState(false)
+  const [live, setLive] = useState<LivePoint[]>([])
 
   const connected = !!state?.connected
   const simRunning = !!state?.sim?.running
@@ -88,6 +90,33 @@ export default function MeasurePage({
         setSimPort(out.simPort || out.ports?.[1] || '')
       })
       .catch(() => undefined)
+  }, [wsOpen])
+
+  // 订阅读数流：推进进度事件之外，测量结果也会逐条推下来
+  useEffect(() => {
+    if (!wsOpen) {
+      return
+    }
+    let alive = true
+    api.subscribe(1).catch(() => undefined)
+    const off = api.onStream((frame, items) => {
+      if (frame.streamId !== 1 || items.length === 0) {
+        return
+      }
+      const bytes =
+        frame.records.reduce((n, r) => n + r.payload.length, 0) +
+        (frame.data?.length ?? 0)
+      api.credit(1, bytes)
+      if (!alive) {
+        return
+      }
+      setLive((prev) => [...prev, ...(items as LivePoint[])].slice(-400))
+    })
+    return () => {
+      alive = false
+      off()
+      void api.unsubscribe(1)
+    }
   }, [wsOpen])
 
   useEffect(() => {
@@ -216,6 +245,7 @@ export default function MeasurePage({
     setResults([])
     setSummary(null)
     setRecordId(null)
+    setLive([])
     try {
       const id = await api.startJob('measure_run', {
         product: { model, code },
@@ -574,6 +604,12 @@ export default function MeasurePage({
               <div className="stat-label">记录号</div>
             </div>
           )}
+        </div>
+        <div style={{ borderTop: '1px solid #eef0f4', paddingTop: 10, marginBottom: 10 }}>
+          <div className="panel-title" style={{ marginBottom: 6 }}>
+            实时读数
+          </div>
+          <LiveReadings points={live} />
         </div>
         <Table
           size="small"

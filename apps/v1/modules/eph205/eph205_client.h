@@ -56,6 +56,12 @@ class Eph205Client {
                     const std::atomic<bool>* cancel = nullptr);
   bool Reset(DeviceError* error);
 
+  // 原样发一帧并收一帧，供调试页手工发命令。
+  // 除正常应答外也接受 ACK（0x80），这样"命令不支持"这类
+  // 通用错误能直接看到状态码，而不是一律超时。
+  bool Raw(Cmd cmd, const std::vector<std::uint8_t>& data, int timeout_ms,
+           Frame* response, DeviceError* error);
+
   int settle_delay_units() const { return settle_delay_units_; }
 
   // 调试页要看的原始帧记录，取走即清空。
@@ -64,7 +70,8 @@ class Eph205Client {
  private:
   bool Transact(Cmd request, const std::uint8_t* data, int len, int timeout_ms,
                 int retries, Frame* response, DeviceError* error,
-                const std::atomic<bool>* cancel);
+                const std::atomic<bool>* cancel,
+                std::uint8_t alt_response = 0);
   bool WriteFrame(Cmd request, const std::uint8_t* data, int len,
                   DeviceError* error);
   bool AwaitResponse(Cmd request, int timeout_ms, Frame* response,
@@ -80,6 +87,7 @@ class Eph205Client {
   std::vector<std::string> frame_log_;
   int settle_delay_units_ = 0;
   std::uint8_t expected_response_ = 0;
+  std::uint8_t alt_response_ = 0;  // 0 表示只认 expected_response_
 };
 
 }  // namespace eph205

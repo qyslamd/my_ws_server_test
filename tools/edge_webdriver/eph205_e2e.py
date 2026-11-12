@@ -184,6 +184,19 @@ def main():
         for line in stats["tail"].splitlines()[:8]:
             print("   ", line)
 
+        # 滚到实时读数曲线，单独留一张图
+        js(sid, """
+            const c = document.querySelector('canvas');
+            if (c) c.scrollIntoView({ block: 'center' });
+            return true;
+        """)
+        time.sleep(0.6)
+        png = call(sid, "GET", "/screenshot")
+        live_shot = os.path.join(ROOT, "temp", "eph205_live.png")
+        with open(live_shot, "wb") as f:
+            f.write(base64.b64decode(png))
+        print("  实时读数截图:", live_shot)
+
         # 其余页面冒烟：逐个点开，确认没有白屏/异常
         for tab, marker in (
             ("调试", "单点测量"),
@@ -196,6 +209,13 @@ def main():
             wait_xpath(sid, f"//*[normalize-space(text())='{marker}']",
                        label=marker)
             print(f"  页面「{tab}」正常")
+            if tab == "调试":
+                # 点检测位 0x07：仿真器未实现，应返回"命令不支持"
+                btn = wait_xpath(sid, "//button[normalize-space(.)='点检']")
+                call(sid, "POST", f"/element/{btn}/click", {})
+                wait_xpath(sid, "//*[contains(text(), '命令不支持')]",
+                           label="命令不支持")
+                print("  点检测位返回「命令不支持」")
         el = wait_xpath(sid, "//li[normalize-space(.)='测试']")
         call(sid, "POST", f"/element/{el}/click", {})
         time.sleep(0.4)
@@ -212,6 +232,15 @@ def main():
         if bad:
             raise RuntimeError(f"统计不符: {bad}")
         print("UI 统计符合预期")
+
+        # WS 数据流：测量过程中服务端逐条推送，页面应显示推送条数
+        live = js(sid, """
+            const m = document.body.innerText.match(/已推送 (\\d+) 条/);
+            return m ? Number(m[1]) : -1;
+        """)
+        print("  实时读数推送:", live, "条")
+        if live <= 0:
+            raise RuntimeError("WS 数据流没有收到读数")
     finally:
         call(sid, "DELETE", "")
         if SERVER_PROC is not None:

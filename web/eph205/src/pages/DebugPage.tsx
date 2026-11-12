@@ -3,6 +3,7 @@ import {
   App,
   Button,
   Descriptions,
+  Input,
   InputNumber,
   Select,
   Space,
@@ -45,6 +46,12 @@ export default function DebugPage({ state, refresh, wsOpen }: Props) {
   const [source, setSource] = useState(2)
   const [frames, setFrames] = useState<{ side: string; text: string }[]>([])
   const [busy, setBusy] = useState(false)
+  const [rawCmd, setRawCmd] = useState(1)
+  const [rawData, setRawData] = useState('')
+  const [rawOut, setRawOut] = useState<any>(null)
+  const [checkP, setCheckP] = useState(1)
+  const [checkN, setCheckN] = useState(2)
+  const [checkOut, setCheckOut] = useState<any>(null)
 
   const connected = !!state?.connected
 
@@ -124,6 +131,19 @@ export default function DebugPage({ state, refresh, wsOpen }: Props) {
       message.success('设备已复位')
     })
 
+  const sendRaw = () =>
+    guard(async () => {
+      const out = await api.command('raw', { cmd: rawCmd, data: rawData })
+      setRawOut(out)
+      message.success(`已收到 ${out.cmdText}`)
+    })
+
+  const checkPoint = () =>
+    guard(async () => {
+      const out = await api.command('check_point', { p: checkP, n: checkN })
+      setCheckOut(out)
+    })
+
   return (
     <div>
       <div className="panel">
@@ -187,6 +207,88 @@ export default function DebugPage({ state, refresh, wsOpen }: Props) {
             <Descriptions.Item label="输出">{params.outputEnabled ? '开' : '关'}</Descriptions.Item>
             <Descriptions.Item label="并联负载">{params.parallelLoad}</Descriptions.Item>
           </Descriptions>
+        )}
+      </div>
+
+      <div className="panel">
+        <div className="panel-title">
+          原始命令
+          <span style={{ color: '#667085', fontWeight: 400, fontSize: 12 }}>
+            直接下发一帧，DATA 用十六进制，如 01 00 02 00
+          </span>
+        </div>
+        <div className="toolbar" style={{ marginBottom: 8 }}>
+          <Select
+            style={{ width: 190 }}
+            value={rawCmd}
+            onChange={setRawCmd}
+            options={[
+              { value: 1, label: '0x01 设备信息' },
+              { value: 2, label: '0x02 单点测量' },
+              { value: 5, label: '0x05 读参数' },
+              { value: 6, label: '0x06 校准' },
+              { value: 7, label: '0x07 点检测试' },
+              { value: 8, label: '0x08 复位' },
+              { value: 9, label: '0x09 原始 ADC' },
+              { value: 10, label: '0x0A 设置模式' },
+              { value: 11, label: '0x0B 读模式' },
+            ]}
+          />
+          <Input
+            style={{ width: 240 }}
+            placeholder="DATA（十六进制，可空）"
+            value={rawData}
+            onChange={(e) => setRawData(e.target.value)}
+          />
+          <Button onClick={sendRaw} loading={busy} disabled={!connected}>
+            发送
+          </Button>
+        </div>
+        {rawOut && (
+          <div className="mono" style={{ lineHeight: 1.7 }}>
+            应答 {rawOut.cmdText}（0x
+            {Number(rawOut.cmd).toString(16).padStart(2, '0').toUpperCase()}）
+            · {rawOut.len} 字节
+            {rawOut.statusText !== undefined && (
+              <>
+                {' '}
+                · 状态 <b>{rawOut.statusText}</b>
+              </>
+            )}
+            <div style={{ color: '#344054' }}>
+              {rawOut.dataHex || '（空）'}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="panel">
+        <div className="panel-title">
+          点检测位
+          <span style={{ color: '#667085', fontWeight: 400, fontSize: 12 }}>
+            0x07，当前固件未实现，用来验证错误路径
+          </span>
+        </div>
+        <div className="toolbar" style={{ marginBottom: 8 }}>
+          <span>P</span>
+          <InputNumber min={1} max={640} value={checkP} onChange={(v) => setCheckP(Number(v ?? 1))} />
+          <span>N</span>
+          <InputNumber min={1} max={640} value={checkN} onChange={(v) => setCheckN(Number(v ?? 1))} />
+          <Button onClick={checkPoint} loading={busy} disabled={!connected}>
+            点检
+          </Button>
+        </div>
+        {checkOut && (
+          <div className="mono">
+            应答 {checkOut.cmdText} · {checkOut.len} 字节
+            {checkOut.statusText !== undefined && (
+              <>
+                {' '}
+                · 状态 <b>{checkOut.statusText}</b>
+              </>
+            )}
+            <div style={{ color: '#344054' }}>{checkOut.dataHex || '（空）'}</div>
+          </div>
         )}
       </div>
 

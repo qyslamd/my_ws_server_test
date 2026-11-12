@@ -85,6 +85,8 @@ GET  /ws?sid=...             1:1 会话（先建 WS，REST 带 X-Session-Id）
 | `get_params` | 0x05 + 0x0B |
 | `measure` | 0x02，`{p, n}` |
 | `reset` | 0x08 |
+| `raw` | 原样下发一帧，`{cmd, data(hex), timeoutMs}` |
+| `check_point` | 0x07 点检测位，`{p, n}` |
 | `frame_log` | 取走收发帧（上位机 + 仿真器） |
 | `sim_start` / `sim_stop` | 仿真端开关 |
 | `sim_set` / `sim_config` / `sim_clear` | 点值覆盖 / 默认阻值 / 清空 |
@@ -174,7 +176,7 @@ python -I tools\edge_webdriver\eph205_e2e.py :: 真实 UI：仿真→连接→�
 | 阶段 | 内容 | 状态 |
 |---|---|---|
 | M0 | 协议/串口/仿真/模块 + React 脚手架 + 垂直切片 | 完成 |
-| M1 | 调试页完善（批量命令、点检测位）、流订阅实时读数 | 待做 |
+| M1 | 调试页原始命令与点检、流订阅实时读数 | 完成 |
 | M2 | 三维视图（three.js 加载 help3d 的 OBJ/MTL） | 完成 |
 | M3 | Excel 导入（SheetJS）、测试项模板管理 | 待做 |
 | M4 | 登录与角色（底座 auth 已有，界面未接） | 待做 |
@@ -182,7 +184,24 @@ python -I tools\edge_webdriver\eph205_e2e.py :: 真实 UI：仿真→连接→�
 
 ---
 
-## 9. 三维视图
+## 9. 实时读数（WS 数据流）
+
+测量过程中，模块把每条结果压进 `readings_`，底座每 10 ms 取一次，
+按 v1 帧格式推给订阅者：
+
+```text
+stream id 1  eph205.readings  class=record
+records 块  重复的 [ts u64][len u32][payload]，payload 是一个 JSON 对象
+```
+
+前端 `src/v1frame.ts` 解析 24 字节头与各块，`api.onStream` 分发；
+`MeasurePage` 订阅 id 1，收到后立刻发 `{type:"credit"}` 归还窗口，
+否则窗口（默认 4 MB）用完后底座会停推。
+
+调试页的「原始命令」走 `raw`：服务端除正常应答外也接受 ACK（0x80），
+所以发未实现的命令（如 0x07 点检）能直接看到「命令不支持」而不是超时。
+
+## 10. 三维视图
 
 资产来自参考项目 `src/app/assets/help3d/`，原样拷到 `web/eph205/public/help3d/`，
 构建时由 Vite 复制到 `www/v1/eph205/help3d/`。
@@ -198,7 +217,7 @@ python -I tools\edge_webdriver\eph205_e2e.py :: 真实 UI：仿真→连接→�
 实现：`web/eph205/src/components/ThreeViewer.tsx`，OrbitControls 旋转/缩放/平移，
 点击部件高亮并在工具栏显示名称。
 
-## 10. 注意事项
+## 11. 注意事项
 
 - 本分支的任何内容都不得合入 `develop`、不得推送。
 - 参考项目只读，不要把它整段业务代码粘进来。

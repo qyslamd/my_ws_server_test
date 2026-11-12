@@ -1,7 +1,10 @@
 // v1 底座客户端：REST 控制/查询 + WS 事件。
 // 底座是 1:1 会话，WS 必须先建立，REST 才带得上 X-Session-Id。
 
+import { decodeJsonLines, parseV1Frame, type V1Frame } from './v1frame'
+
 export type EventHandler = (name: string, payload: any) => void
+export type StreamHandler = (frame: V1Frame, items: any[]) => void
 
 export type Port = string
 
@@ -44,6 +47,8 @@ export class Client {
   private ws: WebSocket | null = null
   private handlers: EventHandler[] = []
   private statusHandlers: ((status: string) => void)[] = []
+  private streamHandlers: StreamHandler[] = []
+  private subscribed = new Set<number>()
 
   constructor() {
     this.sid = 'sid-' + Math.random().toString(36).slice(2, 10)
@@ -61,6 +66,13 @@ export class Client {
     this.handlers.push(handler)
     return () => {
       this.handlers = this.handlers.filter((h) => h !== handler)
+    }
+  }
+
+  onStream(handler: StreamHandler) {
+    this.streamHandlers.push(handler)
+    return () => {
+      this.streamHandlers = this.streamHandlers.filter((h) => h !== handler)
     }
   }
 
@@ -93,7 +105,25 @@ export class Client {
       }
       ws.onmessage = (ev) => {
         if (typeof ev.data !== 'string') {
-          return // 二进制是数据流帧，页面暂不消费
+          // 二进制是数据流帧
+          const frame = parseV1Frame(ev.data as ArrayBuffer)
+          if (frame) {
+            const items: any[] = []
+            if (frame.data) {
+              items.push(...decodeJsonLines(frame.data))
+            }
+            const decoder = new TextDecoder()
+            for (const record of frame.records) {
+              const text = decoder.decode(record.payload)
+              try {
+                items.push(JSON.parse(text))
+              } catch {
+                items.push(...decodeJsonLines(record.payload))
+              }
+            }
+            this.streamHandlers.forEach((h) => h(frame, items))
+          }
+          return
         }
         try {
           const msg = JSON.parse(ev.data)
@@ -181,6 +211,35 @@ export class Client {
       { values },
     )
     return out.values
+  }
+
+  async subscribe(streamId: number, windowBytes = 4 * 1024 * 1024) {
+    const out = await this.call<any>('POST', '/api/v1/subscriptions', {
+      streams: [{ id: streamId, window: windowBytes }],
+    })
+    this.subscribed.add(streamId)
+    return out
+  }
+
+  async unsubscribe(streamId: number) {
+    if (!this.subscribed.delete(streamId)) {
+      return
+    }
+    try {
+      await this.call('DELETE', `/api/v1/subscriptions/${streamId}`)
+    } catch {
+      // 会话已经换了，忽略
+    }
+  }
+
+  // 归还接收窗口，否则订阅会被 credit 流控掐掉
+  credit(streamId: number, bytes: number) {
+    if (!this.wsOpen) {
+      return
+    }
+    this.ws?.send(
+      JSON.stringify({ type: 'credit', streams: [{ id: streamId, bytes }] }),
+    )
   }
 
   async startJob(type: string, input: any): Promise<string> {

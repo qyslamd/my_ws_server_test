@@ -128,6 +128,7 @@ bool Eph205Client::AwaitResponse(Cmd request, int timeout_ms, Frame* response,
                                  DeviceError* error,
                                  const std::atomic<bool>* cancel) {
   expected_response_ = static_cast<std::uint8_t>(ExpectedResponse(request));
+  const std::uint8_t alt = alt_response_;
   const auto deadline = std::chrono::steady_clock::now() +
                         std::chrono::milliseconds(timeout_ms);
 
@@ -168,7 +169,8 @@ bool Eph205Client::AwaitResponse(Cmd request, int timeout_ms, Frame* response,
       AppendLog("RX " + std::string(CmdText(frame.cmd)) + " | " +
                 HexDump(frame.data, frame.len));
       // 不是当前请求的应答：多为重发后的迟到帧，丢弃继续等
-      if (static_cast<std::uint8_t>(frame.cmd) != expected_response_) {
+      const std::uint8_t code = static_cast<std::uint8_t>(frame.cmd);
+      if (code != expected_response_ && !(alt != 0 && code == alt)) {
         continue;
       }
       if (response != nullptr) {
@@ -188,7 +190,9 @@ bool Eph205Client::AwaitResponse(Cmd request, int timeout_ms, Frame* response,
 bool Eph205Client::Transact(Cmd request, const std::uint8_t* data, int len,
                             int timeout_ms, int retries, Frame* response,
                             DeviceError* error,
-                            const std::atomic<bool>* cancel) {
+                            const std::atomic<bool>* cancel,
+                            std::uint8_t alt_response) {
+  alt_response_ = alt_response;
   if (!port_.is_open()) {
     SetError(error, IoError::kDisconnected, static_cast<std::uint8_t>(request),
              "串口未打开");
@@ -458,6 +462,13 @@ bool Eph205Client::MeasureBatch(std::uint32_t start_seq,
     }
   }
   return true;
+}
+
+bool Eph205Client::Raw(Cmd cmd, const std::vector<std::uint8_t>& data,
+                       int timeout_ms, Frame* response, DeviceError* error) {
+  return Transact(cmd, data.data(), static_cast<int>(data.size()),
+                  timeout_ms > 0 ? timeout_ms : 800, 0, response, error,
+                  nullptr, static_cast<std::uint8_t>(Cmd::kAck));
 }
 
 bool Eph205Client::Reset(DeviceError* error) {

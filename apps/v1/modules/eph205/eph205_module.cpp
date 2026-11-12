@@ -7,6 +7,8 @@
 #include <filesystem>
 #include <set>
 
+#include "base/frame.h"
+
 namespace eph205 {
 
 namespace {
@@ -84,6 +86,58 @@ bool BoolValue(const nlohmann::json& obj, const char* key, bool def) {
              text == "false");
   }
   return def;
+}
+
+std::string HexText(const std::uint8_t* data, int len) {
+  static const char* kHex = "0123456789ABCDEF";
+  std::string out;
+  out.reserve(static_cast<std::size_t>(len) * 3);
+  for (int i = 0; i < len; ++i) {
+    if (i > 0) {
+      out.push_back(' ');
+    }
+    out.push_back(kHex[(data[i] >> 4) & 0x0F]);
+    out.push_back(kHex[data[i] & 0x0F]);
+  }
+  return out;
+}
+
+// 允许 "01 02 0x03"、"01,02,03" 这类写法
+bool ParseHex(const std::string& text, std::vector<std::uint8_t>& out,
+              std::string& err) {
+  out.clear();
+  int hi = -1;
+  for (char ch : text) {
+    int value = -1;
+    if (ch >= '0' && ch <= '9') {
+      value = ch - '0';
+    } else if (ch >= 'a' && ch <= 'f') {
+      value = ch - 'a' + 10;
+    } else if (ch >= 'A' && ch <= 'F') {
+      value = ch - 'A' + 10;
+    } else {
+      if (hi >= 0) {
+        err = "十六进制位数不成对";
+        return false;
+      }
+      continue;  // 空格、逗号、0x 的 x 都跳过
+    }
+    if (hi < 0) {
+      hi = value;
+    } else {
+      out.push_back(static_cast<std::uint8_t>((hi << 4) | value));
+      hi = -1;
+    }
+  }
+  if (hi >= 0) {
+    err = "十六进制位数不成对";
+    return false;
+  }
+  if (out.size() > static_cast<std::size_t>(kMaxDataLen)) {
+    err = "数据超过 255 字节";
+    return false;
+  }
+  return true;
 }
 
 const char* IoText(IoError io) {
@@ -372,9 +426,9 @@ nlohmann::json Eph205Module::Describe() const {
           {"commands",
            {"ports", "connect", "disconnect", "device_info", "set_mode",
             "set_param", "get_params", "measure", "reset", "frame_log",
-            "sim_start", "sim_stop", "sim_set", "sim_config", "sim_clear",
-            "history_list", "history_get", "history_delete",
-            "history_export"}},
+            "raw", "check_point", "sim_start", "sim_stop", "sim_set",
+            "sim_config", "sim_clear", "history_list", "history_get",
+            "history_delete", "history_export"}},
           {"jobs", {"measure_run"}}};
 }
 
@@ -419,10 +473,10 @@ bool Eph205Module::Command(const std::string& action,
     job_running = job_ && !job_->finished.load();
   }
   static const std::set<std::string> kDeviceCommands = {
-      "connect",       "disconnect", "device_info", "set_mode",
-      "set_param",     "get_params", "measure",     "reset",
-      "frame_log",     "sim_start",  "sim_stop",    "sim_set",
-      "sim_config",    "sim_clear"};
+      "connect",     "disconnect", "device_info", "set_mode",
+      "set_param",   "get_params", "measure",     "reset",
+      "frame_log",   "sim_start",  "sim_stop",    "sim_set",
+      "sim_config",  "sim_clear",  "raw",         "check_point"};
   if (job_running && kDeviceCommands.count(action) > 0) {
     err = "测量进行中，请先停止";
     return false;
@@ -688,6 +742,70 @@ bool Eph205Module::HandleCommand(const std::string& action,
     sim_.ClearOverrides();
     result = sim_.Describe();
     return true;
+  }
+
+  if (action == "raw") {
+    const int cmd = payload.value("cmd", -1);
+    if (cmd < 0 || cmd > 255) {
+      err = "cmd 必须是 0..255";
+      return false;
+    }
+    std::vector<std::uint8_t> bytes;
+    if (!ParseHex(payload.value("data", ""), bytes, err)) {
+      return false;
+    }
+    const int timeout_ms = payload.value("timeoutMs", 800);
+    return RunSync(
+        [this, cmd, bytes, timeout_ms](nlohmann::json& out, std::string& e) {
+          Frame resp;
+          DeviceError de;
+          if (!client_.Raw(static_cast<Cmd>(cmd), bytes, timeout_ms, &resp,
+                           &de)) {
+            e = de.message.empty() ? std::string(IoText(de.io)) : de.message;
+            return false;
+          }
+          out = {{"requestCmd", cmd},
+                 {"cmd", static_cast<int>(resp.cmd)},
+                 {"cmdText", CmdText(resp.cmd)},
+                 {"len", resp.len},
+                 {"dataHex", HexText(resp.data, resp.len)}};
+          if (resp.len >= 1) {
+            out["status"] = static_cast<int>(resp.data[0]);
+            out["statusText"] = StatusText(static_cast<Status>(resp.data[0]));
+          }
+          return true;
+        },
+        result, err, kDeviceCommandTimeoutMs);
+  }
+
+  if (action == "check_point") {
+    const int p = payload.value("p", 0);
+    const int n = payload.value("n", 0);
+    std::uint8_t data[4] = {};
+    PutU16Le(&data[0], p);
+    PutU16Le(&data[2], n);
+    return RunSync(
+        [this, p, n, data](nlohmann::json& out, std::string& e) {
+          Frame resp;
+          DeviceError de;
+          const std::vector<std::uint8_t> bytes(data, data + 4);
+          if (!client_.Raw(Cmd::kCheckPoint, bytes, 1200, &resp, &de)) {
+            e = de.message.empty() ? std::string(IoText(de.io)) : de.message;
+            return false;
+          }
+          out = {{"p", p},
+                 {"n", n},
+                 {"cmd", static_cast<int>(resp.cmd)},
+                 {"cmdText", CmdText(resp.cmd)},
+                 {"len", resp.len},
+                 {"dataHex", HexText(resp.data, resp.len)}};
+          if (resp.len >= 1) {
+            out["status"] = static_cast<int>(resp.data[0]);
+            out["statusText"] = StatusText(static_cast<Status>(resp.data[0]));
+          }
+          return true;
+        },
+        result, err, kDeviceCommandTimeoutMs);
   }
 
   if (action == "history_list") {
@@ -1118,7 +1236,7 @@ bool Eph205Module::CancelJob(const std::string& id, std::string& err,
 
 // -------------------------------------------------------------------- 数据流
 
-bool Eph205Module::Produce(uint32_t stream_id, uint64_t /*now_ms*/,
+bool Eph205Module::Produce(uint32_t stream_id, uint64_t now_ms,
                            std::vector<uint8_t>& data,
                            std::vector<uint8_t>& records,
                            std::string& /*meta*/) {
@@ -1129,15 +1247,18 @@ bool Eph205Module::Produce(uint32_t stream_id, uint64_t /*now_ms*/,
   if (readings_.empty()) {
     return false;
   }
-  std::string text;
+  // 按 v1 规范：records 块是重复的 [ts u64][len u32][payload]
+  std::vector<uint8_t> out;
   int count = 0;
+  const uint64_t ts_ns = now_ms * 1000000ULL;
   while (!readings_.empty() && count < kMaxReadingsPerFrame) {
-    text += readings_.front().dump();
-    text.push_back('\n');
+    const std::string text = readings_.front().dump();
+    const std::vector<uint8_t> payload(text.begin(), text.end());
+    v1::AppendRecord(out, ts_ns, payload);
     readings_.pop_front();
     ++count;
   }
-  records.assign(text.begin(), text.end());
+  records.swap(out);
   return true;
 }
 
