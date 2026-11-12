@@ -53,8 +53,31 @@ def wait_xpath(sid, xpath, tries=120):
     raise RuntimeError("not found " + xpath)
 
 
+def set_input(sid, element_id, value):
+    call(sid, "POST", "/execute/sync", {
+        "script": """
+        const el = document.getElementById(arguments[0]);
+        const setter = Object.getOwnPropertyDescriptor(
+            window.HTMLInputElement.prototype, 'value').set;
+        setter.call(el, arguments[1]);
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        return el.value;
+        """,
+        "args": [element_id, value],
+    })
+
+
+def login(sid, user, password):
+    wait_xpath(sid, "//button[normalize-space(.)='登录']")
+    set_input(sid, "username", user)
+    set_input(sid, "password", password)
+    btn = find(sid, "//button[normalize-space(.)='登录']")
+    call(sid, "POST", f"/element/{btn}/click", {})
+    print(f"  以 {user} 登录")
+
+
 def click_text(sid, text):
-    el = wait_xpath(sid, f"//li[normalize-space(.)='{text}']")
+    el = wait_xpath(sid, f"//button[normalize-space(.)='{text}']")
     call(sid, "POST", f"/element/{el}/click", {})
 
 
@@ -85,19 +108,20 @@ def main():
     print("session:", sid)
     try:
         call(sid, "POST", "/url", {"url": APP})
+        login(sid, "admin", "admin")
         wait_xpath(sid, "//span[contains(., '通讯正常')]")
         click_text(sid, "帮助")
-        wait_xpath(sid, "//div[@role='tab'][normalize-space(.)='三维视图']")
-        el = find(sid, "//div[@role='tab'][normalize-space(.)='三维视图']")
+        wait_xpath(sid, "//button[normalize-space(.)='三维视图']")
+        el = find(sid, "//button[normalize-space(.)='三维视图']")
         call(sid, "POST", f"/element/{el}/click", {})
 
         wait_xpath(sid, "//span[contains(., '已加载')]", tries=200)
         info = js(sid, """
-            const c = document.querySelector('canvas');
+            const c = document.querySelector('.viewer-host canvas');
             let gl = null;
             try { gl = c && (c.getContext('webgl2') || c.getContext('webgl')); }
             catch (e) { gl = null; }
-            const tags = [...document.querySelectorAll('.ant-tag')].map(t => t.innerText);
+            const tags = [...document.querySelectorAll('.tag')].map(t => t.innerText);
             return {
               hasCanvas: !!c,
               w: c ? c.width : 0,

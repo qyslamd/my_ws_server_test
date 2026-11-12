@@ -175,7 +175,7 @@ def main():
 
         login(sid, "admin", "admin")
         wait_xpath(sid, "//span[contains(., '通讯正常')]", label="通讯正常")
-        wait_xpath(sid, "//span[contains(@class,'ant-tag')][contains(normalize-space(.), '管理员')]",
+        wait_xpath(sid, "//span[contains(@class,'tag')][contains(normalize-space(.), '管理员')]",
                    label="管理员标识")
         print("  WS 已连接，当前为管理员")
 
@@ -204,7 +204,7 @@ def main():
              {"text": CSV_PATH, "value": list(CSV_PATH)})
         print("  已投递 CSV")
 
-        wait_xpath(sid, "//td[contains(., '二线')]", label="导入后的表格行")
+        wait_xpath(sid, "//div[@data-page='items']//tbody/tr", label="导入后的表格行")
 
         # Excel 导入：读第一张（或名为“测试项”的）工作表
         print("[3b] Excel 导入")
@@ -218,8 +218,7 @@ def main():
             time.sleep(0.25)
         else:
             raise RuntimeError("Excel 导入没有生效")
-        rows = js(sid, "return document.querySelectorAll("
-                       "'.ant-table-tbody tr.ant-table-row').length;")
+        rows = js(sid, """return document.querySelector("[data-page='items']").querySelectorAll("tbody tr").length;""")
         print("  Excel 导入后表格行数:", rows)
         if rows != 4:
             raise RuntimeError(f"Excel 导入行数不对: {rows}")
@@ -240,12 +239,14 @@ def main():
             raise RuntimeError("换回 CSV 失败")
         time.sleep(0.5)
 
+        # 导入完成后把临时取消隐藏的文件框收回去
+        js(sid, "const f=document.querySelector('input[type=file]'); if(f) f.style.display='none'; return true;")
         click_text(sid, "开始测试")
         print("  等待测量完成…")
 
         for _ in range(120):
             body = js(sid, "return document.body.innerText;") or ""
-            if "completed" in body and "记录号" in body:
+            if "已完成" in body and "记录号" in body:
                 break
             time.sleep(0.25)
         else:
@@ -298,22 +299,28 @@ def main():
             ("工具", "运行信息"),
             ("帮助", "使用说明"),
         ):
-            el = wait_xpath(sid, f"//li[normalize-space(.)='{tab}']", label=tab)
+            el = wait_xpath(sid, f"//button[normalize-space(.)='{tab}']", label=tab)
             call(sid, "POST", f"/element/{el}/click", {})
             wait_xpath(sid, f"//*[normalize-space(text())='{marker}']",
                        label=marker)
             print(f"  页面「{tab}」正常")
             if tab == "历史":
                 for _ in range(80):
-                    checks = find_all(sid, "//tbody/tr[contains(@class,'ant-table-row')]//label[contains(@class,'ant-checkbox-wrapper')]")
-                    if len(checks) >= 2:
+                    count = js(sid, """return document.querySelectorAll(
+                        "[data-page='history'] tbody tr input[type=checkbox]").length;""")
+                    if count >= 2:
                         break
                     time.sleep(0.25)
                 else:
                     raise RuntimeError("历史记录不足两条，无法对比")
-                for box in checks[:2]:
-                    click_js(sid, box)
-                    time.sleep(0.2)
+                # 一次性在页面里点两个复选框，避免两次点击之间表格重建导致元素失效
+                js(sid, """
+                    const boxes = document.querySelectorAll(
+                        "[data-page='history'] tbody tr input[type=checkbox]");
+                    boxes[0].click();
+                    boxes[1].click();
+                    return true;
+                """)
                 for _ in range(40):
                     if js(sid, "return document.body.innerText.includes('已选 2 条');"):
                         break
@@ -325,7 +332,7 @@ def main():
                 wait_xpath(sid, "//*[contains(text(), '最大差值')]",
                            label="最大差值")
                 print("  两条记录对比打开正常")
-                close = wait_xpath(sid, "//button[contains(@class,'ant-drawer-close')]")
+                close = wait_xpath(sid, "//button[contains(@class,'close')]")
                 click_js(sid, close)
                 time.sleep(0.6)
             if tab == "调试":
@@ -335,7 +342,7 @@ def main():
                 wait_xpath(sid, "//*[contains(text(), '命令不支持')]",
                            label="命令不支持")
                 print("  点检测位返回「命令不支持」")
-        el = wait_xpath(sid, "//li[normalize-space(.)='测试']")
+        el = wait_xpath(sid, "//button[normalize-space(.)='测试']")
         call(sid, "POST", f"/element/{el}/click", {})
         time.sleep(0.4)
 
@@ -348,10 +355,10 @@ def main():
         print("\n[7] 角色校验")
         click_text(sid, "退出")
         login(sid, "operator", "operator")
-        wait_xpath(sid, "//span[contains(@class,'ant-tag')][contains(normalize-space(.), '操作员')]",
+        wait_xpath(sid, "//span[contains(@class,'tag')][contains(normalize-space(.), '操作员')]",
                    label="操作员标识")
         try:
-            find(sid, "//li[normalize-space(.)='调试']")
+            find(sid, "//button[normalize-space(.)='调试']")
         except Exception:
             print("  操作员看不到「调试」页")
         else:

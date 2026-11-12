@@ -167,15 +167,16 @@ def main():
     el = find(sid, "//input[@type='file']")
     call(sid, "POST", f"/element/{el}/value",
          {"text": CSV_PATH, "value": list(CSV_PATH)})
-    wait_xpath(sid, "//td[contains(., '二线')]")
+    wait_xpath(sid, "//table[contains(@class,'grid')]//tbody/tr")
     time.sleep(1.5)
     shot(sid, "03-import.png")
 
     print("\n[4] 开始测量")
+    js(sid, "const f=document.querySelector('input[type=file]'); if(f) f.style.display='none'; return true;")
     click_text(sid, "开始测试")
     for _ in range(160):
         body = js(sid, "return document.body.innerText;") or ""
-        if "completed" in body and "记录号" in body:
+        if "已完成" in body and "记录号" in body:
             break
         time.sleep(0.25)
     else:
@@ -190,22 +191,22 @@ def main():
     print("  统计:", stats)
 
     print("\n[5] 历史记录")
-    el = wait_xpath(sid, "//li[normalize-space(.)='历史']")
+    el = wait_xpath(sid, "//button[normalize-space(.)='历史']")
     call(sid, "POST", f"/element/{el}/click", {})
     time.sleep(1.5)
     shot(sid, "05-history.png")
 
     print("\n[6] 三维视图")
-    el = wait_xpath(sid, "//li[normalize-space(.)='帮助']")
+    el = wait_xpath(sid, "//button[normalize-space(.)='帮助']")
     call(sid, "POST", f"/element/{el}/click", {})
-    el = wait_xpath(sid, "//div[@role='tab'][normalize-space(.)='三维视图']")
+    el = wait_xpath(sid, "//button[normalize-space(.)='三维视图']")
     call(sid, "POST", f"/element/{el}/click", {})
     wait_xpath(sid, "//span[contains(., '已加载')]", tries=200)
     time.sleep(2.0)
     shot(sid, "06-3d.png")
 
     print("\n[7] 回到测试页")
-    el = wait_xpath(sid, "//li[normalize-space(.)='测试']")
+    el = wait_xpath(sid, "//button[normalize-space(.)='测试']")
     call(sid, "POST", f"/element/{el}/click", {})
     time.sleep(1.0)
 

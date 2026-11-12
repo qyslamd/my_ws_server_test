@@ -33,7 +33,9 @@ apps/v1/modules/eph205/       EPH205 业务模块（仅本地）
   measurement_store.*         JSONL 落库 + CSV 导出
   eph205_module.*             v1::Module 实现（命令/参数/作业/流）
   main_eph205.cpp             业务实例入口 -> eph205_server.exe
-web/eph205/                   React + AntD + TS + Vite（仅本地）
+www/v1/eph205/                前端（原生 ES module + CSS，无构建，仅本地）
+www/v1/eph205/vendor/         three.js 与 SheetJS 的本地副本
+www/v1/eph205/help3d/         三维资产
 www/v1/eph205/                前端构建产物（gitignore）
 ```
 
@@ -41,6 +43,25 @@ www/v1/eph205/                前端构建产物（gitignore）
 `v1_server.exe` 里没有任何设备代码。
 
 ---
+
+### 前端形态：无框架、无构建
+
+`www/v1/eph205/` 里的就是上线用的文件，没有打包步骤：
+
+```text
+index.html       import map 把 "three" 指到 ./vendor/three.module.js
+app.js           启动、登录、页签、状态轮询
+lib/             api（REST + WS 帧解析）、ui（表格/抽屉/toast）、model（导入导出）
+pages/           测试 / 调试 / 历史 / 工具 / 帮助
+vendor/          three.module.js + three.core.js + 三个 addon + xlsx.full.min.js
+```
+
+- 不用 React / Vue：页面就五个，状态只有"设备、作业进度、登录用户"，直接操作 DOM。
+- 不用 antd：表格、抽屉、toast 在 `lib/ui.js` 里自己实现（约 250 行）。
+- three.js 用 `import` 静态引入但只在帮助页动态 `import()`，首屏不加载。
+- xlsx 用 `<script>` 懒加载，第一次导入 Excel 才下载。
+- 视觉按桌面版 QSS 的 token 复刻：主色 `#0078D4`、页面底 `#f5f6fa`、
+  表头 `#f5f6fa`、表格选中 `#cce4f7`、标题靛蓝 `#1a237e`。
 
 ## 3. 线程模型
 
@@ -129,16 +150,11 @@ notMeasured/passRate/durationMs）。
 | Excel `.xlsx/.xls` | 读第一个工作表；有名为 `测试项` 的表则优先；表头同 CSV |
 | JSON | 数组，或 `{items:[...], product:{...}}` |
 
-Excel 用 SheetJS（`xlsx@0.20.3`）。npm 上的 `xlsx` 停在 0.18.5，带
-[CVE-2023-30533](https://github.com/advisories/GHSA-4r6h-8v6p-xvw6)，
-所以 `package.json` 里依赖的是官方 CDN 的 tarball：
+Excel 用 SheetJS（`xlsx@0.20.3`，官方 CDN 版；npm 上的 0.18.5 带
+[CVE-2023-30533](https://github.com/advisories/GHSA-4r6h-8v6p-xvw6)）。
 
-```text
-https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
-```
-
-**重新 `npm install` 需要能访问 cdn.sheetjs.com。** 解析代码用
-`await import('xlsx')` 动态加载，产物里是单独的 chunk，不拖累首屏。
+库文件已 vendor 到 `www/v1/eph205/vendor/xlsx.full.min.js`，
+**只在第一次导入 Excel 时用 `<script>` 懒加载**，不进首屏。
 
 ## 6. 判定与落库
 
@@ -157,8 +173,7 @@ https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
 
 ```bat
 build.bat
-cd web\eph205 && npm install && npm run build
-cd ..\.. && cmake --build build --target copy_www
+cmake --build build --target copy_www
 ```
 
 启动（工作目录必须是 `build\`，静态页从 `www/v1` 取）：
@@ -172,12 +187,8 @@ eph205_server.exe 8790 --auth
 
 访问 `http://127.0.0.1:8790/eph205/`。
 
-开发模式（热更新，代理到 8790）：
-
-```bat
-cd web\eph205
-npm run dev
-```
+前端没有构建步骤：改 `www/v1/eph205/` 下的文件，重新 `copy_www` 后刷新即可。
+调试时直接改 `build/www/v1/eph205/` 里的副本也能立即生效（下一次 full build 会被覆盖）。
 
 ---
 
@@ -261,8 +272,7 @@ sim_start sim_stop sim_set sim_config sim_clear history_delete
 
 ## 13. 三维视图
 
-资产来自参考项目 `src/app/assets/help3d/`，原样拷到 `web/eph205/public/help3d/`，
-构建时由 Vite 复制到 `www/v1/eph205/help3d/`。
+资产来自参考项目 `src/app/assets/help3d/`，原样拷到 `www/v1/eph205/help3d/`。
 
 约定（照抄 Blender 导出）：
 
@@ -272,7 +282,7 @@ sim_start sim_stop sim_set sim_config sim_clear history_delete
 - 同一份 OBJ 复用多次（三块多路器板）时先加载一次再克隆，克隆后逐个复制材质，
   否则高亮一个部件会把同款全点亮。
 
-实现：`web/eph205/src/components/ThreeViewer.tsx`，OrbitControls 旋转/缩放/平移，
+实现：`www/v1/eph205/lib/viewer3d.js`，OrbitControls 旋转/缩放/平移，
 点击部件高亮并在工具栏显示名称。
 
 ## 14. 注意事项
