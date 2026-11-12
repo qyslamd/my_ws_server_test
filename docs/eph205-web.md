@@ -1,6 +1,6 @@
 # EPH205 Web 版（本地分支）
 
-> 分支：`feature/eph205-web`，**只留本地，不 push、不推公网**。
+> 分支：`feature/eph205-web`，**已推送**（2026-11-12 经确认推到 origin，仓库为 public）。
 > 对照物：`D:\sb\eph205\workspace\eph2805-new`（Qt5 版）。
 > 底座文档：`docs/ws-protocol-v1.md`、`docs/v1-checklist.md`。
 
@@ -287,7 +287,7 @@ sim_start sim_stop sim_set sim_config sim_clear history_delete
 
 ## 14. 注意事项
 
-- 本分支的任何内容都不得合入 `develop`、不得推送。
+- 本分支不合入 `develop`（`develop` 只保留业务无关底座）。分支本身已推送。
 - 参考项目只读，不要把它整段业务代码粘进来。
 - 串口是独占资源：上一个会话没断开时，另一个进程打不开同一端口。
 - WS 断开会让底座执行 SAFE_STOP（模块 `Stop`），这是设计行为；
