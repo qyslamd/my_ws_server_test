@@ -1,5 +1,8 @@
 #include "main_window.h"
 
+#include <cstdio>
+#include <ctime>
+
 #include "client.h"
 #include "include/cef_app.h"
 #include "include/cef_browser.h"
@@ -33,6 +36,8 @@ bool MainWindow::Create(HINSTANCE instance) {
   if (hwnd_ == nullptr) {
     return false;
   }
+  // 显式再设一次：创建期间的 WM_SETTEXT 依赖默认处理，这里兜底
+  SetWindowTextW(hwnd_, kTitle);
 
   ShowWindow(hwnd_, SW_SHOW);
   UpdateWindow(hwnd_);
@@ -58,16 +63,55 @@ LRESULT CALLBACK MainWindow::WndProc(HWND hwnd, UINT message, WPARAM wparam, LPA
   if (message == WM_NCCREATE) {
     auto* cs = reinterpret_cast<CREATESTRUCTW*>(lparam);
     SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(cs->lpCreateParams));
-    return TRUE;
+    // 要交给默认处理：窗口标题是在创建过程中由 WM_SETTEXT 设进去的
+    return DefWindowProcW(hwnd, message, wparam, lparam);
   }
   auto* self = reinterpret_cast<MainWindow*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
   if (self == nullptr) {
     return DefWindowProcW(hwnd, message, wparam, lparam);
   }
-  return self->HandleMessage(message, wparam, lparam);
+  return self->HandleMessage(hwnd, message, wparam, lparam);
 }
 
-LRESULT MainWindow::HandleMessage(UINT message, WPARAM wparam, LPARAM lparam) {
+// 排查关窗问题用：写到 %TEMP%\eph205-client.log
+void WriteClientLog(const char* text) {
+  char dir[MAX_PATH] = {};
+  GetTempPathA(MAX_PATH, dir);
+  std::string file = std::string(dir) + "eph205-client.log";
+  FILE* fp = nullptr;
+  if (fopen_s(&fp, file.c_str(), "a") == 0 && fp) {
+    SYSTEMTIME st = {};
+    GetLocalTime(&st);
+    fprintf(fp, "%02d:%02d:%02d.%03d %s\n", st.wHour, st.wMinute, st.wSecond,
+            st.wMilliseconds, text);
+    fclose(fp);
+  }
+}
+
+void MainWindow::Log(const char* text) { WriteClientLog(text); }
+
+void MainWindow::RequestClose() {
+  Log(closing_ ? "RequestClose(2nd)" : "RequestClose");
+  // 第一次：让 CEF 关浏览器，它会回调 DoClose，之后 CEF 再给窗口发一次 WM_CLOSE；
+  // 第二次：浏览器已经同意关闭，真正销毁父窗口（子窗口跟着没，OnBeforeClose 才会来）。
+  if (!closing_ && browser_ && browser_->GetHost()) {
+    closing_ = true;
+    browser_->GetHost()->CloseBrowser(true);
+    return;
+  }
+  Destroy();
+}
+
+void MainWindow::Destroy() {
+  Log("Destroy");
+  if (hwnd_) {
+    HWND hwnd = hwnd_;
+    hwnd_ = nullptr;
+    DestroyWindow(hwnd);
+  }
+}
+
+LRESULT MainWindow::HandleMessage(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam) {
   switch (message) {
     case WM_SIZE:
       if (browser_ && browser_->GetHost()) {
@@ -83,18 +127,17 @@ LRESULT MainWindow::HandleMessage(UINT message, WPARAM wparam, LPARAM lparam) {
     }
 
     case WM_CLOSE:
-      if (browser_ && browser_->GetHost()) {
-        browser_->GetHost()->CloseBrowser(true);
-        return 0;  // 等 OnBeforeClose 再收尾
-      }
-      DestroyWindow(hwnd_);
+      Log("WM_CLOSE");
+      RequestClose();
       return 0;
 
     case WM_DESTROY:
+      Log("WM_DESTROY");
       hwnd_ = nullptr;
       return 0;
 
     default:
-      return DefWindowProcW(hwnd_, message, wparam, lparam);
+      // 注意用参数里的 hwnd：创建期间 hwnd_ 还没赋值
+      return DefWindowProcW(hwnd, message, wparam, lparam);
   }
 }

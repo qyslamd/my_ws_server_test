@@ -202,7 +202,7 @@ int main(int argc, char* argv[]) {
 
 ### 5.1 窗口
 
-标准 Win32 窗口，**系统标题栏**（先不做自绘，后面可选）：
+标准 Win32 窗口，**系统标题栏**：
 
 - 标题：`EP-H205 综合测试系统`
 - 图标：`.ico` 编进 exe（RC 资源）
@@ -210,8 +210,9 @@ int main(int argc, char* argv[]) {
 - 无菜单栏、无工具栏、无状态栏——所有功能都在页面里
 - 最小尺寸限制 1024×700（页面按这个宽度做的）
 
-如果后面要"更像设备软件"，再加无边框 + 自绘标题栏（拖动、最小化、关闭），
-那是纯 Win32 的活，和 CEF 无关。
+**不做无边框、不自绘非客户区。** 定制 Win32 的非客户区（拖动区、最小化/关闭按钮、
+高 DPI、贴边吸附、多显示器）是个独立的活，这一阶段不做；无边框窗口在工控机上
+观感也更差——客户要的是"像个正常软件"，不是"像个全屏面板"。
 
 ### 5.2 启动顺序
 
@@ -418,7 +419,7 @@ data\ 放哪？ → 记录属于业务数据，放程序目录下的 data\ 或 %
 | P2 | 服务端线程化 + 随机端口 + 单实例 + 日志 | 双击即用，两个实例不会同时开 |
 | P3 | www 内嵌、`--devtools` 开关、错误页 | 只发一个目录，去掉 www 也能跑 |
 | P4 | 打包（zip / Inno Setup）、图标、签名 | 装到干净机器上一次成功 |
-| P5（可选） | 无边框自绘标题栏、kiosk 模式 | 看客户要求 |
+| — | ~~无边框自绘标题栏~~ | 已否决：用系统标题栏 |
 
 P0~P2 是核心，估计 2~3 天；P3~P4 再加 1~2 天。
 
@@ -443,7 +444,7 @@ P0~P2 是核心，估计 2~3 天；P3~P4 再加 1~2 天。
 ## 14. 需要你确认的
 
 1. **发布形态**：便携 zip / Inno Setup 安装包 / 两者都要？
-2. **窗口**：先用系统标题栏可以吗？还是一开始就要无边框自绘（更像设备软件）？
+2. ~~窗口：系统标题栏还是自绘？~~ **已定：系统标题栏，不自绘非客户区。**
 3. **全屏 / kiosk**：车间触摸屏需不需要"只能开这一个程序"的模式？
 4. **产品名与图标**：现在叫「EP-H205 综合测试系统」，图标有没有现成的 `.ico`？
 5. **CSV 导出落盘**：每次弹保存框 / 固定目录（比如 `文档\EPH205\exports`）/ 系统下载目录？
@@ -516,3 +517,47 @@ Ctrl+R: 页面没有刷新
 2. 我们的目标没有定义 `UNICODE`，`IDC_ARROW` 会展开成窄字符版本，
    `LoadCursorW` 直接编译失败。CMake 里补了
    `UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX`。
+
+### 关不掉的问题（用户反馈后修好了）
+
+**现象**：点窗口的 X 没反应，进程一直在，只能用任务管理器强杀。
+
+**定位**：加了一行文件日志（`%TEMP%\eph205-client.log`）后，序列很清楚：
+
+```text
+WM_CLOSE → RequestClose → DoClose(返回 false)
+WM_CLOSE → RequestClose        ← CEF 又给父窗口发了一次
+（然后什么也没有）
+```
+
+第一次 WM_CLOSE 调 `CloseBrowser(true)`，CEF 回调 `DoClose`；我们返回 false
+表示"允许关闭"，于是 CEF 给父窗口再发一次 WM_CLOSE，等父窗口被销毁后才继续
+销毁浏览器、回调 `OnBeforeClose`。我们的第二次 WM_CLOSE 又去调
+`CloseBrowser`（没有效果），窗口没销毁 → CEF 等窗口 → 我们等 `OnBeforeClose`
+→ 互相等死。
+
+**修复**：两段式关闭。
+
+```cpp
+if (!closing_ && browser_ && browser_->GetHost()) {
+  closing_ = true;
+  browser_->GetHost()->CloseBrowser(true);   // 第一次：征求浏览器同意
+  return;
+}
+Destroy();                                    // 第二次：真正销毁父窗口
+```
+
+销毁父窗口后子窗口跟着没，`OnBeforeClose` 才到，再 `CefQuitMessageLoop()`。
+修完 WM_CLOSE 后 **0.6 秒**退出，日志完整走完
+`WM_CLOSE → DoClose → WM_CLOSE → Destroy → WM_DESTROY → OnBeforeClose`。
+
+**顺带修掉**：窗口标题一直是空的（任务栏看不到程序名）。原因是
+`WM_NCCREATE` 里存完 `this` 就 `return TRUE`，跳过了默认处理，创建期间那次
+`WM_SETTEXT` 落空。改成交给 `DefWindowProcW`，创建后再显式 `SetWindowTextW` 兜底。
+
+### 截图怎么抓的
+
+`PrintWindow` 抓不到 CEF 的 GPU 合成内容（只能拍到白底 + 标题栏）。
+截图时用 `EPH205.exe --devtools --disable-gpu` 启动，走软件合成，
+`tools/capture_window.ps1` 就能把窗口连同标题栏一起拍下来。
+这是拍照手段，不影响正常使用时的硬件渲染。

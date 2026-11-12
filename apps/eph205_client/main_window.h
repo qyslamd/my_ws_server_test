@@ -12,6 +12,9 @@
 
 class ClientHandler;
 
+// 排障日志：%TEMP%/eph205-client.log
+void WriteClientLog(const char* text);
+
 class MainWindow {
  public:
   explicit MainWindow(const AppOptions& options);
@@ -22,13 +25,19 @@ class MainWindow {
   void SetBrowser(CefRefPtr<CefBrowser> browser);
   CefRefPtr<CefBrowser> browser() const { return browser_; }
 
+  // 关窗：先让浏览器关，浏览器关了再真正销毁窗口
+  void RequestClose();
+  void Destroy();
+
  private:
   static LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam);
-  LRESULT HandleMessage(UINT message, WPARAM wparam, LPARAM lparam);
+  LRESULT HandleMessage(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam);
+  void Log(const char* text);
 
   AppOptions options_;
   HINSTANCE instance_ = nullptr;
   HWND hwnd_ = nullptr;
   CefRefPtr<CefBrowser> browser_;
   CefRefPtr<ClientHandler> client_;
+  bool closing_ = false;
 };

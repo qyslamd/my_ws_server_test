@@ -92,14 +92,17 @@ void ClientHandler::OnAfterCreated(CefRefPtr<CefBrowser> browser) {
 }
 
 bool ClientHandler::DoClose(CefRefPtr<CefBrowser> browser) {
+  WriteClientLog("DoClose");
   // 交给默认流程：CEF 关闭浏览器后回调 OnBeforeClose，我们在那里收尾
   return false;
 }
 
 void ClientHandler::OnBeforeClose(CefRefPtr<CefBrowser> browser) {
   CEF_REQUIRE_UI_THREAD();
+  WriteClientLog("OnBeforeClose");
   if (window_) {
     window_->SetBrowser(nullptr);
+    window_->Destroy();   // 浏览器没了，父窗口也一起收掉
   }
   CefQuitMessageLoop();
 }
