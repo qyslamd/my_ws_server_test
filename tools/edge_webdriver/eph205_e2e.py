@@ -29,6 +29,7 @@ HEALTH = "http://127.0.0.1:8790/api/v1/health"
 EDGE = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
 ROOT = r"D:\trae_workspace\my_ws_server_test"
 CSV_PATH = os.path.join(ROOT, "temp", "eph205_items.csv")
+XLSX_PATH = os.path.join(ROOT, "temp", "eph205_items.xlsx")
 SHOT = os.path.join(ROOT, "temp", "eph205_e2e.png")
 
 CSV = """序号,P,N,线制,量程,下限,上限,测量
@@ -190,6 +191,40 @@ def main():
         print("  已投递 CSV")
 
         wait_xpath(sid, "//td[contains(., '二线')]", label="导入后的表格行")
+
+        # Excel 导入：读第一张（或名为“测试项”的）工作表
+        print("[3b] Excel 导入")
+        el = find(sid, "//input[@type='file']")
+        call(sid, "POST", f"/element/{el}/value",
+             {"text": XLSX_PATH, "value": list(XLSX_PATH)})
+        for _ in range(60):
+            if js(sid, "return [...document.querySelectorAll('input')]"
+                      ".some(i => i.value === '21');"):
+                break
+            time.sleep(0.25)
+        else:
+            raise RuntimeError("Excel 导入没有生效")
+        rows = js(sid, "return document.querySelectorAll("
+                       "'.ant-table-tbody tr.ant-table-row').length;")
+        print("  Excel 导入后表格行数:", rows)
+        if rows != 4:
+            raise RuntimeError(f"Excel 导入行数不对: {rows}")
+
+        # 换回 CSV，后面的统计按 7 项校验
+        el = find(sid, "//input[@type='file']")
+        call(sid, "POST", f"/element/{el}/value",
+             {"text": CSV_PATH, "value": list(CSV_PATH)})
+        for _ in range(60):
+            back = js(sid, """
+                const vals = [...document.querySelectorAll('input')].map(i => i.value);
+                return !vals.includes('21') && vals.includes('6');
+            """)
+            if back:
+                break
+            time.sleep(0.25)
+        else:
+            raise RuntimeError("换回 CSV 失败")
+        time.sleep(0.5)
 
         click_text(sid, "开始测试")
         print("  等待测量完成…")

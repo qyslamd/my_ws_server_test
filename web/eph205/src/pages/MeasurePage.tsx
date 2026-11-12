@@ -22,7 +22,7 @@ import {
   downloadText,
   itemsToJson,
   makeItem,
-  parseImport,
+  parseFile,
   type ResultRow,
   type TestItem,
 } from '../model'
@@ -166,8 +166,7 @@ export default function MeasurePage({
 
   const onImport = async (file: File) => {
     try {
-      const text = await file.text()
-      const parsed = parseImport(text, file.name)
+      const parsed = await parseFile(file)
       if (parsed.items.length === 0) {
         message.error('没有解析到有效测试项（需要 P/N 至少两列）')
         return false
@@ -526,8 +525,12 @@ export default function MeasurePage({
           <Tag>{items.length}</Tag>
         </div>
         <div className="toolbar" style={{ marginBottom: 8 }}>
-          <Upload accept=".csv,.json,.txt" showUploadList={false} beforeUpload={onImport}>
-            <Button icon={<UploadOutlined />}>导入 CSV / JSON</Button>
+          <Upload
+            accept=".csv,.json,.txt,.xlsx,.xls"
+            showUploadList={false}
+            beforeUpload={onImport}
+          >
+            <Button icon={<UploadOutlined />}>导入 CSV / Excel / JSON</Button>
           </Upload>
           <Button onClick={addRow}>添加一行</Button>
           <Popconfirm title="清空全部测试项？" onConfirm={() => setItems([])}>

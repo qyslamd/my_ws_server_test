@@ -159,26 +159,30 @@ function parseJson(text: string): ImportResult {
   }
 }
 
-function parseCsv(text: string): ImportResult {
-  const lines = text.split(/\r?\n/).filter((l) => l.trim() !== '' &&
-    !l.trim().startsWith('#') && !l.trim().startsWith(';'))
-  if (lines.length === 0) {
+// 二维表（CSV 或 Excel 的首个工作表）统一走这里：
+// 有表头按名字取列，没有表头按 P,N[,下限,上限] 的固定顺序。
+export function parseRows(rows: unknown[][]): ImportResult {
+  const cleaned = rows.filter((row) =>
+    row.some((cell) => String(cell ?? '').trim() !== ''),
+  )
+  if (cleaned.length === 0) {
     return { items: [], skipped: 0 }
   }
-  const first = splitCsvLine(lines[0]).map((c) => c.trim())
+  const asText = (row: unknown[]) => row.map((c) => String(c ?? '').trim())
+  const first = asText(cleaned[0])
   const hasHeader = first.some((c) =>
     /^(p|n|序号|线制|量程|下限|上限|测量)$/i.test(c),
   )
   const header = hasHeader ? first : ['P', 'N', '下限', '上限']
-  const body = hasHeader ? lines.slice(1) : lines
+  const body = hasHeader ? cleaned.slice(1) : cleaned
 
   const items: TestItem[] = []
   let skipped = 0
-  body.forEach((line, index) => {
-    const cells = splitCsvLine(line)
+  body.forEach((cells, index) => {
+    const texts = asText(cells)
     const row: Record<string, string> = {}
     header.forEach((name, i) => {
-      row[name] = (cells[i] ?? '').trim()
+      row[name] = texts[i] ?? ''
     })
     const p = toNumber(pick(row, 'P', 'p'))
     const n = toNumber(pick(row, 'N', 'n'))
@@ -191,20 +195,56 @@ function parseCsv(text: string): ImportResult {
     item.p = p
     item.n = n
     const wire = pick(row, '线制', 'wire')
-    item.wire = wire === '四线' || wire === '1' || wire.toLowerCase() === '4w'
-      ? 1
-      : 0
+    item.wire =
+      wire === '四线' || wire === '1' || wire.toLowerCase() === '4w' ? 1 : 0
     item.range = toNumber(pick(row, '量程', 'range')) ?? 0
     item.minOhms = toNumber(pick(row, '下限', 'minOhms', 'min'))
     item.maxOhms = toNumber(pick(row, '上限', 'maxOhms', 'max'))
     const measure = pick(row, '测量', 'measure')
     if (measure !== '') {
-      item.measure = !(measure === '0' || measure === '否' ||
-        measure.toLowerCase() === 'n' || measure.toLowerCase() === 'false')
+      item.measure = !(
+        measure === '0' ||
+        measure === '否' ||
+        measure.toLowerCase() === 'n' ||
+        measure.toLowerCase() === 'false'
+      )
     }
     items.push(item)
   })
   return { items, skipped }
+}
+
+function parseCsv(text: string): ImportResult {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim() !== '' &&
+    !l.trim().startsWith('#') && !l.trim().startsWith(';'))
+  if (lines.length === 0) {
+    return { items: [], skipped: 0 }
+  }
+  return parseRows(lines.map(splitCsvLine))
+}
+
+// 按扩展名分派：xlsx/xls 走 SheetJS（动态加载，不拖累首屏），
+// 其余按文本当 CSV/JSON。
+export async function parseFile(file: File): Promise<ImportResult> {
+  const name = file.name.toLowerCase()
+  if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
+    const XLSX = await import('xlsx')
+    const buffer = await file.arrayBuffer()
+    const book = XLSX.read(buffer, { type: 'array' })
+    const sheetName =
+      book.SheetNames.find((n) => n === '测试项') ?? book.SheetNames[0]
+    if (!sheetName) {
+      return { items: [], skipped: 0 }
+    }
+    const rows = XLSX.utils.sheet_to_json<unknown[]>(book.Sheets[sheetName], {
+      header: 1,
+      defval: '',
+      blankrows: false,
+    })
+    return parseRows(rows)
+  }
+  const text = await file.text()
+  return parseImport(text, file.name)
 }
 
 export function itemsToJson(items: TestItem[]) {

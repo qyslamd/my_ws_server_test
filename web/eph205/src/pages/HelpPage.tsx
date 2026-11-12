@@ -83,6 +83,12 @@ export default function HelpPage() {
                             </ul>
                           </Paragraph>
                           <Paragraph>
+                            Excel（.xlsx / .xls）：读取第一个工作表；若存在名为
+                            <Text code>测试项</Text> 的工作表则优先用它。
+                            表头与 CSV 相同，空单元格按“未填”处理。
+                            旧的固定单元格版式不支持。
+                          </Paragraph>
+                          <Paragraph>
                             JSON：数组，或 <Text code>{'{ items: [...], product: {...} }'}</Text>。
                             字段名支持 p/n/wire/range/minOhms/maxOhms/measure。
                           </Paragraph>

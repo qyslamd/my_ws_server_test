@@ -118,7 +118,28 @@ notMeasured/passRate/durationMs）。
 
 ---
 
-## 5. 判定与落库
+## 5. 测试项导入
+
+三种格式，解析都在浏览器里做，服务端只收结构化数组：
+
+| 格式 | 说明 |
+|---|---|
+| CSV | 表头 `序号,P,N,线制,量程,下限,上限,测量`；无表头按 `P,N[,下限,上限]` |
+| Excel `.xlsx/.xls` | 读第一个工作表；有名为 `测试项` 的表则优先；表头同 CSV |
+| JSON | 数组，或 `{items:[...], product:{...}}` |
+
+Excel 用 SheetJS（`xlsx@0.20.3`）。npm 上的 `xlsx` 停在 0.18.5，带
+[CVE-2023-30533](https://github.com/advisories/GHSA-4r6h-8v6p-xvw6)，
+所以 `package.json` 里依赖的是官方 CDN 的 tarball：
+
+```text
+https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz
+```
+
+**重新 `npm install` 需要能访问 cdn.sheetjs.com。** 解析代码用
+`await import('xlsx')` 动态加载，产物里是单独的 chunk，不拖累首屏。
+
+## 6. 判定与落库
 
 - 测量值为 NaN → 测量失败（原因 `over_range`）
 - 整帧失败 → 本帧全部测量失败（`frame_failed`）
@@ -129,7 +150,7 @@ notMeasured/passRate/durationMs）。
 
 ---
 
-## 6. 运行
+## 7. 运行
 
 构建：
 
@@ -159,7 +180,7 @@ npm run dev
 
 ---
 
-## 7. 自动化验证
+## 8. 自动化验证
 
 ```bat
 3rdparty\edgedriver_win64\msedgedriver.exe --port=9515
@@ -173,20 +194,20 @@ python -I tools\edge_webdriver\eph205_e2e.py :: 真实 UI：仿真→连接→�
 
 ---
 
-## 8. 进度
+## 9. 进度
 
 | 阶段 | 内容 | 状态 |
 |---|---|---|
 | M0 | 协议/串口/仿真/模块 + React 脚手架 + 垂直切片 | 完成 |
 | M1 | 调试页原始命令与点检、流订阅实时读数 | 完成 |
 | M2 | 三维视图（three.js 加载 help3d 的 OBJ/MTL） | 完成 |
-| M3 | Excel 导入（SheetJS）、测试项模板管理 | 待做 |
+| M3 | Excel 导入（SheetJS） | 完成 |
 | M4 | 登录与角色（界面 + 服务端强制） | 完成 |
 | M5 | 历史快照/对比、批量导出 | 待做 |
 
 ---
 
-## 9. 实时读数（WS 数据流）
+## 10. 实时读数（WS 数据流）
 
 测量过程中，模块把每条结果压进 `readings_`，底座每 10 ms 取一次，
 按 v1 帧格式推给订阅者：
@@ -203,7 +224,7 @@ records 块  重复的 [ts u64][len u32][payload]，payload 是一个 JSON 对�
 调试页的「原始命令」走 `raw`：服务端除正常应答外也接受 ACK（0x80），
 所以发未实现的命令（如 0x07 点检）能直接看到「命令不支持」而不是超时。
 
-## 10. 登录与角色
+## 11. 登录与角色
 
 两个内置账号（底座 `/api/v1/auth/*`）：
 
@@ -226,7 +247,7 @@ sim_start sim_stop sim_set sim_config sim_clear history_delete
 底座的钩子是 `v1::Module::AdminOnly(action)`，默认返回 false，
 不带认证时底座不调用它，所以对其它业务模块零影响。
 
-## 11. 三维视图
+## 12. 三维视图
 
 资产来自参考项目 `src/app/assets/help3d/`，原样拷到 `web/eph205/public/help3d/`，
 构建时由 Vite 复制到 `www/v1/eph205/help3d/`。
@@ -242,7 +263,7 @@ sim_start sim_stop sim_set sim_config sim_clear history_delete
 实现：`web/eph205/src/components/ThreeViewer.tsx`，OrbitControls 旋转/缩放/平移，
 点击部件高亮并在工具栏显示名称。
 
-## 12. 注意事项
+## 13. 注意事项
 
 - 本分支的任何内容都不得合入 `develop`、不得推送。
 - 参考项目只读，不要把它整段业务代码粘进来。
