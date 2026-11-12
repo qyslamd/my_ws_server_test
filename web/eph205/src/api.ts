@@ -164,12 +164,9 @@ export class Client {
       const text = await res.text()
       const data = text ? JSON.parse(text) : null
       if (!res.ok) {
-        const err = data?.error
-        throw new ApiError(
-          res.status,
-          err?.message || `HTTP ${res.status}`,
-          data,
-        )
+        // 底座的错误体是 {code, msg, retryable}，兼容嵌套 error.message
+        const message = data?.msg || data?.error?.message || `HTTP ${res.status}`
+        throw new ApiError(res.status, message, data)
       }
       return data as T
     } finally {
@@ -184,6 +181,29 @@ export class Client {
       payload,
     )
     return out.result
+  }
+
+  async login(username: string, password: string) {
+    return this.call<{ token: string; user: string; role: string }>(
+      'POST',
+      '/api/v1/auth/login',
+      { username, password },
+    )
+  }
+
+  async logout() {
+    try {
+      await this.call('POST', '/api/v1/auth/logout')
+    } catch {
+      // 会话可能已经没了
+    }
+  }
+
+  async me() {
+    return this.call<{ user: string; role: string; authenticated: boolean }>(
+      'GET',
+      '/api/v1/auth/me',
+    )
   }
 
   async getModules(): Promise<any[]> {

@@ -14,10 +14,12 @@ interface Props {
   state: any
   refresh: () => void
   wsOpen: boolean
+  role: string
 }
 
-export default function ToolsPage({ state, refresh, wsOpen }: Props) {
+export default function ToolsPage({ state, refresh, wsOpen, role }: Props) {
   const { message } = App.useApp()
+  const isAdmin = role === 'admin'
   const [defaultOhms, setDefaultOhms] = useState(100)
   const [p, setP] = useState(1)
   const [n, setN] = useState(2)
@@ -106,6 +108,7 @@ export default function ToolsPage({ state, refresh, wsOpen }: Props) {
           <Tag color={sim?.running ? 'blue' : 'default'}>
             {sim?.running ? `运行中 ${sim?.port ?? ''}` : '未启动'}
           </Tag>
+          {!isAdmin && <Tag color="default">仅管理员可修改</Tag>}
         </div>
         <div className="toolbar" style={{ marginBottom: 8 }}>
           <span>默认阻值 Ω</span>
@@ -116,7 +119,7 @@ export default function ToolsPage({ state, refresh, wsOpen }: Props) {
             onChange={(v) => setDefaultOhms(Number(v ?? 100))}
             style={{ width: 120 }}
           />
-          <Button onClick={applyDefault} loading={busy} disabled={!sim?.running}>
+          <Button onClick={applyDefault} loading={busy} disabled={!sim?.running || !isAdmin}>
             应用
           </Button>
         </div>
@@ -129,10 +132,10 @@ export default function ToolsPage({ state, refresh, wsOpen }: Props) {
           <InputNumber min={0} value={ohms} onChange={(v) => setOhms(Number(v ?? 100))} disabled={over} />
           <span>超量程</span>
           <Switch size="small" checked={over} onChange={setOver} />
-          <Button onClick={applyPoint} loading={busy} disabled={!sim?.running}>
+          <Button onClick={applyPoint} loading={busy} disabled={!sim?.running || !isAdmin}>
             设置点值
           </Button>
-          <Button onClick={clearOverrides} loading={busy} disabled={!sim?.running}>
+          <Button onClick={clearOverrides} loading={busy} disabled={!sim?.running || !isAdmin}>
             清除覆盖
           </Button>
         </div>

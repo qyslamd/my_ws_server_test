@@ -143,8 +143,10 @@ cd ..\.. && cmake --build build --target copy_www
 
 ```bat
 cd build
-eph205_server.exe 8790
+eph205_server.exe 8790 --auth
 ```
+
+不加 `--auth` 时服务端不校验角色，界面仍会按角色隐藏入口。
 
 访问 `http://127.0.0.1:8790/eph205/`。
 
@@ -179,7 +181,7 @@ python -I tools\edge_webdriver\eph205_e2e.py :: 真实 UI：仿真→连接→�
 | M1 | 调试页原始命令与点检、流订阅实时读数 | 完成 |
 | M2 | 三维视图（three.js 加载 help3d 的 OBJ/MTL） | 完成 |
 | M3 | Excel 导入（SheetJS）、测试项模板管理 | 待做 |
-| M4 | 登录与角色（底座 auth 已有，界面未接） | 待做 |
+| M4 | 登录与角色（界面 + 服务端强制） | 完成 |
 | M5 | 历史快照/对比、批量导出 | 待做 |
 
 ---
@@ -201,7 +203,30 @@ records 块  重复的 [ts u64][len u32][payload]，payload 是一个 JSON 对�
 调试页的「原始命令」走 `raw`：服务端除正常应答外也接受 ACK（0x80），
 所以发未实现的命令（如 0x07 点检）能直接看到「命令不支持」而不是超时。
 
-## 10. 三维视图
+## 10. 登录与角色
+
+两个内置账号（底座 `/api/v1/auth/*`）：
+
+| 账号 | 角色 | 能做什么 |
+|---|---|---|
+| `admin/admin` | 管理员 | 全部 |
+| `operator/operator` | 操作员 | 连接、测量、查/导出历史、看日志 |
+
+仅管理员可执行的命令（模块 `AdminOnly`）：
+
+```text
+raw check_point reset set_param set_mode frame_log
+sim_start sim_stop sim_set sim_config sim_clear history_delete
+```
+
+服务端在 `--auth` 下对命令做前置拦截，返回 `403 admin role required`；
+界面同时隐藏「调试」页、禁用仿真按钮、隐藏历史删除。
+两边都要有——只隐藏界面等于没有权限。
+
+底座的钩子是 `v1::Module::AdminOnly(action)`，默认返回 false，
+不带认证时底座不调用它，所以对其它业务模块零影响。
+
+## 11. 三维视图
 
 资产来自参考项目 `src/app/assets/help3d/`，原样拷到 `web/eph205/public/help3d/`，
 构建时由 Vite 复制到 `www/v1/eph205/help3d/`。
@@ -217,7 +242,7 @@ records 块  重复的 [ts u64][len u32][payload]，payload 是一个 JSON 对�
 实现：`web/eph205/src/components/ThreeViewer.tsx`，OrbitControls 旋转/缩放/平移，
 点击部件高亮并在工具栏显示名称。
 
-## 11. 注意事项
+## 12. 注意事项
 
 - 本分支的任何内容都不得合入 `develop`、不得推送。
 - 参考项目只读，不要把它整段业务代码粘进来。

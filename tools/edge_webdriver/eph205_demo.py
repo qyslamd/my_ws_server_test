@@ -132,9 +132,15 @@ def main():
     print("浏览器会话:", sid)
 
     call(sid, "POST", "/url", {"url": APP})
-    print("\n[1] 打开测试页")
+    print("\n[1] 登录并打开测试页")
+    wait_xpath(sid, "//button[normalize-space(.)='登录']")
+    time.sleep(0.8)
+    shot(sid, "00-login.png")
+    btn = find(sid, "//button[normalize-space(.)='登录']")
+    call(sid, "POST", f"/element/{btn}/click", {})
     wait_xpath(sid, "//span[contains(., '通讯正常')]")
-    time.sleep(1.5)
+    wait_xpath(sid, "//*[contains(text(), 'admin · 管理员')]")
+    time.sleep(1.2)
     shot(sid, "01-open.png")
 
     print("\n[2] 启动仿真 + 连接设备")

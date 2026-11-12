@@ -93,6 +93,31 @@ def click_text(sid, text):
     print(f"  点击「{text}」")
 
 
+def set_input(sid, element_id, value):
+    """AntD 是受控输入，WebDriver 的 clear 不触发 React onChange，
+    这里用原生 setter + input 事件把值真正写进去。"""
+    call(sid, "POST", "/execute/sync", {
+        "script": """
+        const el = document.getElementById(arguments[0]);
+        const setter = Object.getOwnPropertyDescriptor(
+            window.HTMLInputElement.prototype, 'value').set;
+        setter.call(el, arguments[1]);
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        return el.value;
+        """,
+        "args": [element_id, value],
+    })
+
+
+def login(sid, user, password):
+    wait_xpath(sid, "//button[normalize-space(.)='登录']", label="登录页")
+    set_input(sid, "username", user)
+    set_input(sid, "password", password)
+    btn = find(sid, "//button[normalize-space(.)='登录']")
+    call(sid, "POST", f"/element/{btn}/click", {})
+    print(f"  以 {user} 登录")
+
+
 SERVER_PROC = None
 
 
@@ -106,7 +131,8 @@ def ensure_server():
     except Exception:
         pass
     exe = os.path.join(ROOT, "build", "eph205_server.exe")
-    SERVER_PROC = subprocess.Popen([exe, "8790"],
+    # --auth 打开服务端的角色校验（admin 才能执行调试/维护命令）
+    SERVER_PROC = subprocess.Popen([exe, "8790", "--auth"],
                                    cwd=os.path.join(ROOT, "build"))
     wait(HEALTH)
     print("已启动服务端 pid=", SERVER_PROC.pid)
@@ -132,8 +158,11 @@ def main():
         call(sid, "POST", "/url", {"url": APP})
         print("打开", APP)
 
+        login(sid, "admin", "admin")
         wait_xpath(sid, "//span[contains(., '通讯正常')]", label="通讯正常")
-        print("  WS 已连接")
+        wait_xpath(sid, "//span[contains(@class,'ant-tag')][contains(normalize-space(.), '管理员')]",
+                   label="管理员标识")
+        print("  WS 已连接，当前为管理员")
 
         try:
             find(sid, "//button[normalize-space(.)='停止仿真']")
@@ -196,6 +225,22 @@ def main():
         with open(live_shot, "wb") as f:
             f.write(base64.b64decode(png))
         print("  实时读数截图:", live_shot)
+        summary = dict(zip(stats["labels"], stats["stats"]))
+        expect = {"进度": "7/7", "通过": "5", "失败": "1", "测量失败": "0"}
+        bad = {k: (summary.get(k), v) for k, v in expect.items()
+               if summary.get(k) != v}
+        if bad:
+            raise RuntimeError(f"统计不符: {bad}")
+        print("UI 统计符合预期")
+
+        # WS 数据流：测量过程中服务端逐条推送，页面应显示推送条数
+        live = js(sid, """
+            const m = document.body.innerText.match(/已推送 (\\d+) 条/);
+            return m ? Number(m[1]) : -1;
+        """)
+        print("  实时读数推送:", live, "条")
+        if live <= 0:
+            raise RuntimeError("WS 数据流没有收到读数")
 
         # 其余页面冒烟：逐个点开，确认没有白屏/异常
         for tab, marker in (
@@ -225,22 +270,30 @@ def main():
             f.write(base64.b64decode(png))
         print("截图:", SHOT)
 
-        summary = dict(zip(stats["labels"], stats["stats"]))
-        expect = {"进度": "7/7", "通过": "5", "失败": "1", "测量失败": "0"}
-        bad = {k: (summary.get(k), v) for k, v in expect.items()
-               if summary.get(k) != v}
-        if bad:
-            raise RuntimeError(f"统计不符: {bad}")
-        print("UI 统计符合预期")
-
-        # WS 数据流：测量过程中服务端逐条推送，页面应显示推送条数
-        live = js(sid, """
-            const m = document.body.innerText.match(/已推送 (\\d+) 条/);
-            return m ? Number(m[1]) : -1;
+        # 角色：退出后以 operator 登录，调试页应消失、仿真按钮应禁用
+        print("\n[7] 角色校验")
+        click_text(sid, "退出")
+        login(sid, "operator", "operator")
+        wait_xpath(sid, "//span[contains(@class,'ant-tag')][contains(normalize-space(.), '操作员')]",
+                   label="操作员标识")
+        try:
+            find(sid, "//li[normalize-space(.)='调试']")
+        except Exception:
+            print("  操作员看不到「调试」页")
+        else:
+            raise RuntimeError("操作员不应看到调试页")
+        disabled = js(sid, """
+            const b = [...document.querySelectorAll('button')]
+              .find(x => x.innerText.trim() === '停止仿真' || x.innerText.trim() === '启动仿真');
+            return b ? b.disabled : null;
         """)
-        print("  实时读数推送:", live, "条")
-        if live <= 0:
-            raise RuntimeError("WS 数据流没有收到读数")
+        if disabled is not True:
+            raise RuntimeError("操作员的仿真按钮应被禁用")
+        print("  操作员的仿真按钮已禁用")
+        png = call(sid, "GET", "/screenshot")
+        with open(os.path.join(ROOT, "temp", "eph205_operator.png"), "wb") as f:
+            f.write(base64.b64decode(png))
+
     finally:
         call(sid, "DELETE", "")
         if SERVER_PROC is not None:

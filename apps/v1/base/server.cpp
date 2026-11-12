@@ -515,6 +515,10 @@ void V1Server::OnHttp(mg_connection* c, mg_http_message* hm) {
         ReplyError(c, 404, 2004, "unknown module");
         return;
       }
+      if (auth_required_ && s->role != "admin" && m->AdminOnly(parts[4])) {
+        ReplyError(c, 403, 4001, "admin role required");
+        return;
+      }
       json body;
       if (!ParseBody(hm, body)) {
         ReplyError(c, 400, 1001, "invalid json");

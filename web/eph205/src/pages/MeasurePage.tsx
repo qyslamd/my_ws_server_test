@@ -33,6 +33,7 @@ interface Props {
   progress: JobProgress | null
   progressLog: JobProgress[]
   wsOpen: boolean
+  role: string
 }
 
 const WIRE_OPTIONS = [
@@ -55,8 +56,10 @@ export default function MeasurePage({
   refresh,
   progress,
   wsOpen,
+  role,
 }: Props) {
   const { message } = App.useApp()
+  const isAdmin = role === 'admin'
   const [ports, setPorts] = useState<string[]>([])
   const [port, setPort] = useState<string>('')
   const [simPort, setSimPort] = useState<string>('')
@@ -491,7 +494,7 @@ export default function MeasurePage({
             onChange={setSimPort}
             disabled={simRunning || busy}
           />
-          <Button onClick={toggleSim} loading={busy} disabled={!wsOpen}>
+          <Button onClick={toggleSim} loading={busy} disabled={!wsOpen || !isAdmin}>
             {simRunning ? '停止仿真' : '启动仿真'}
           </Button>
           <Tag color={simRunning ? 'blue' : 'default'}>

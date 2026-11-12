@@ -46,6 +46,7 @@ class Eph205Module : public v1::Module {
 
   bool Command(const std::string& action, const nlohmann::json& payload,
                nlohmann::json& result, std::string& err) override;
+  bool AdminOnly(const std::string& action) const override;
 
   nlohmann::json GetParams(const std::string& scope) const override;
   bool SetParams(const std::string& scope, const nlohmann::json& values,

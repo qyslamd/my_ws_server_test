@@ -21,6 +21,7 @@ import {
 
 interface Props {
   wsOpen: boolean
+  role: string
 }
 
 const RESULT_COLOR: Record<string, string> = {
@@ -45,7 +46,8 @@ function timeText(ms: number) {
   )}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
 }
 
-export default function HistoryPage({ wsOpen }: Props) {
+export default function HistoryPage({ wsOpen, role }: Props) {
+  const isAdmin = role === 'admin'
   const { message } = App.useApp()
   const [rows, setRows] = useState<any[]>([])
   const [total, setTotal] = useState(0)
@@ -169,11 +171,13 @@ export default function HistoryPage({ wsOpen }: Props) {
           <Button size="small" type="link" onClick={() => void exportRecord(row.id)}>
             导出
           </Button>
-          <Popconfirm title={`删除记录 #${row.id}？`} onConfirm={() => void remove(row.id)}>
-            <Button size="small" type="link" danger>
-              删除
-            </Button>
-          </Popconfirm>
+          {isAdmin && (
+            <Popconfirm title={`删除记录 #${row.id}？`} onConfirm={() => void remove(row.id)}>
+              <Button size="small" type="link" danger>
+                删除
+              </Button>
+            </Popconfirm>
+          )}
         </Space>
       ),
     },

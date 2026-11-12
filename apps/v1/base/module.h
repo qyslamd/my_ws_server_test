@@ -33,6 +33,10 @@ class Module {
                        const nlohmann::json& payload,
                        nlohmann::json& result, std::string& err) = 0;
 
+  // 底座是否要求 admin 角色才能执行该命令。
+  // 默认全部放行；业务模块按自己的语义声明，底座只在启用认证时生效。
+  virtual bool AdminOnly(const std::string& /*action*/) const { return false; }
+
   virtual nlohmann::json GetParams(const std::string& scope) const = 0;
   virtual bool SetParams(const std::string& scope,
                          const nlohmann::json& values, bool replace,

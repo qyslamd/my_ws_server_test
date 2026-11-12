@@ -464,6 +464,16 @@ bool Eph205Module::SetParams(const std::string& scope,
 
 // ---------------------------------------------------------------- 命令分派
 
+// 改设备参数、碰仿真器、看原始帧都属于调试/维护动作，只给 admin。
+// 连接、测量、查历史、导出这些操作员日常要用的不拦。
+bool Eph205Module::AdminOnly(const std::string& action) const {
+  static const std::set<std::string> kAdmin = {
+      "raw",      "check_point", "reset",       "set_param",
+      "set_mode", "frame_log",   "sim_start",   "sim_stop",
+      "sim_set",  "sim_config",  "sim_clear",   "history_delete"};
+  return kAdmin.count(action) > 0;
+}
+
 bool Eph205Module::Command(const std::string& action,
                            const nlohmann::json& payload,
                            nlohmann::json& result, std::string& err) {

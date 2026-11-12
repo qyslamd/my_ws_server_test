@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   App as AntApp,
   Badge,
+  Button,
   ConfigProvider,
   Layout,
   Menu,
@@ -16,6 +17,7 @@ import DebugPage from './pages/DebugPage'
 import HistoryPage from './pages/HistoryPage'
 import ToolsPage from './pages/ToolsPage'
 import HelpPage from './pages/HelpPage'
+import LoginPage from './pages/LoginPage'
 
 const { Sider, Content } = Layout
 const { Text } = Typography
@@ -31,6 +33,8 @@ const MENU = [
 function Shell() {
   const [wsStatus, setWsStatus] = useState('connecting')
   const [page, setPage] = useState('measure')
+  const [auth, setAuth] = useState<{ user: string; role: string } | null>(null)
+  const [authChecked, setAuthChecked] = useState(false)
   const [state, setState] = useState<any>(null)
   const [progress, setProgress] = useState<JobProgress | null>(null)
   const [progressLog, setProgressLog] = useState<JobProgress[]>([])
@@ -63,11 +67,24 @@ function Shell() {
     })
     const offStatus = api.onStatus((status) => setWsStatus(status))
     api.connect().then(
-      () => {
+      async () => {
         setWsStatus('open')
+        // 会话刚建立，问一下底座当前登录状态
+        try {
+          const me = await api.me()
+          if (me.authenticated) {
+            setAuth({ user: me.user, role: me.role })
+          }
+        } catch {
+          // 没登录过就是未认证
+        }
+        setAuthChecked(true)
         void refresh()
       },
-      () => setWsStatus('error'),
+      () => {
+        setWsStatus('error')
+        setAuthChecked(true)
+      },
     )
     const timer = window.setInterval(() => void refresh(), 2000)
     return () => {
@@ -81,6 +98,47 @@ function Shell() {
 
   const deviceConnected = !!state?.connected
   const device = state?.device
+  const isAdmin = auth?.role === 'admin'
+  const menuItems = MENU.filter((item) => item.key !== 'debug' || isAdmin)
+
+  const logout = async () => {
+    await api.logout()
+    // 换人登录后不该看到上一个人的作业进度
+    setProgress(null)
+    setProgressLog([])
+    setState(null)
+    setAuth(null)
+    setPage('measure')
+  }
+
+  if (!authChecked) {
+    return (
+      <div
+        style={{
+          height: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: '#667085',
+        }}
+      >
+        {wsStatus === 'error' ? '无法连接服务端' : '正在连接…'}
+      </div>
+    )
+  }
+
+  if (!auth) {
+    return (
+      <LoginPage
+        onLogin={(user) => {
+          setProgress(null)
+          setProgressLog([])
+          setAuth(user)
+          setPage('measure')
+        }}
+      />
+    )
+  }
 
   return (
     <Layout style={{ height: '100%' }}>
@@ -105,7 +163,12 @@ function Shell() {
               {device.muxBoards}
             </Text>
           )}
-          <Text style={{ color: '#667085', fontSize: 12 }}>sid {api.sessionId}</Text>
+          <Tag color={isAdmin ? 'gold' : 'default'}>
+            {auth.user} · {isAdmin ? '管理员' : '操作员'}
+          </Tag>
+          <Button size="small" onClick={logout} ghost>
+            退出
+          </Button>
         </Space>
       </div>
       <Layout>
@@ -113,7 +176,7 @@ function Shell() {
           <Menu
             mode="inline"
             selectedKeys={[page]}
-            items={MENU}
+            items={menuItems}
             onClick={(e) => setPage(e.key)}
             style={{ height: '100%', borderInlineEnd: '1px solid #e6e8ec' }}
           />
@@ -127,14 +190,22 @@ function Shell() {
               progress={progress}
               progressLog={progressLog}
               wsOpen={wsStatus === 'open'}
+              role={auth.role}
             />
           </div>
           {page === 'debug' && (
             <DebugPage state={state} refresh={refresh} wsOpen={wsStatus === 'open'} />
           )}
-          {page === 'history' && <HistoryPage wsOpen={wsStatus === 'open'} />}
+          {page === 'history' && (
+            <HistoryPage wsOpen={wsStatus === 'open'} role={auth.role} />
+          )}
           {page === 'tools' && (
-            <ToolsPage state={state} refresh={refresh} wsOpen={wsStatus === 'open'} />
+            <ToolsPage
+              state={state}
+              refresh={refresh}
+              wsOpen={wsStatus === 'open'}
+              role={auth.role}
+            />
           )}
           {page === 'help' && <HelpPage />}
         </Content>
