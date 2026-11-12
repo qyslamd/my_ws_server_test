@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Collapse, Tabs, Tag, Typography } from 'antd'
+import ThreeViewer from '../components/ThreeViewer'
 
 const { Paragraph, Text } = Typography
 
@@ -119,11 +120,7 @@ export default function HelpPage() {
             {
               key: '3d',
               label: '三维视图',
-              children: (
-                <Paragraph type="secondary">
-                  3D 模型查看器将在下一阶段接入（three.js 加载现有 OBJ/MTL 资产）。
-                </Paragraph>
-              ),
+              children: <ThreeViewer />,
             },
           ]}
         />

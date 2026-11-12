@@ -80,5 +80,8 @@ Thumbs.db
 /web/*/dist/
 /www/v1/eph205/
 
+# Wavefront 模型也是 .obj，不能当成编译产物忽略
+!/web/*/public/**/*.obj
+
 # ---------- 运行期数据 ----------
 /data/

@@ -175,14 +175,30 @@ python -I tools\edge_webdriver\eph205_e2e.py :: 真实 UI：仿真→连接→�
 |---|---|---|
 | M0 | 协议/串口/仿真/模块 + React 脚手架 + 垂直切片 | 完成 |
 | M1 | 调试页完善（批量命令、点检测位）、流订阅实时读数 | 待做 |
-| M2 | 三维视图（three.js 加载 help3d 的 OBJ/MTL） | 待做 |
+| M2 | 三维视图（three.js 加载 help3d 的 OBJ/MTL） | 完成 |
 | M3 | Excel 导入（SheetJS）、测试项模板管理 | 待做 |
 | M4 | 登录与角色（底座 auth 已有，界面未接） | 待做 |
 | M5 | 历史快照/对比、批量导出 | 待做 |
 
 ---
 
-## 9. 注意事项
+## 9. 三维视图
+
+资产来自参考项目 `src/app/assets/help3d/`，原样拷到 `web/eph205/public/help3d/`，
+构建时由 Vite 复制到 `www/v1/eph205/help3d/`。
+
+约定（照抄 Blender 导出）：
+
+- OBJ 是 **Z-up、顶点在局部坐标**；
+- `system_3d.json` 的 `position` 是 **Y-up 世界坐标**，Y 为高度；
+- 所以渲染时每个部件先绕 X 轴 -90° 转成 Y-up，再平移到 `position`；
+- 同一份 OBJ 复用多次（三块多路器板）时先加载一次再克隆，克隆后逐个复制材质，
+  否则高亮一个部件会把同款全点亮。
+
+实现：`web/eph205/src/components/ThreeViewer.tsx`，OrbitControls 旋转/缩放/平移，
+点击部件高亮并在工具栏显示名称。
+
+## 10. 注意事项
 
 - 本分支的任何内容都不得合入 `develop`、不得推送。
 - 参考项目只读，不要把它整段业务代码粘进来。
