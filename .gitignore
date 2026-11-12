@@ -65,6 +65,9 @@ Thumbs.db
 /3rdparty/nlohmann/*
 !/3rdparty/nlohmann/json.hpp
 !/3rdparty/nlohmann/LICENSE.MIT
+# 本地浏览器自动化工具不入库
+/3rdparty/edgedriver_win64/
+/3rdparty/edgedriver_win64.zip
 
 # ---------- 构建日志 ----------
 /build_log.txt

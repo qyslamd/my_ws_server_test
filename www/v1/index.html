@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>v1 通讯底座</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <strong>v1 通讯底座</strong>
+  <span class="muted">业务无关 / 模块由使用方注册</span>
+  <span id="status" class="status">未连接</span>
+</header>
+<main>
+  <section class="card">
+    <h2>Capabilities</h2>
+    <pre id="capabilities">等待连接…</pre>
+  </section>
+  <section class="card">
+    <h2>Modules</h2>
+    <pre id="modules">等待连接…</pre>
+  </section>
+  <section class="card">
+    <h2>Streams</h2>
+    <pre id="streams">等待连接…</pre>
+  </section>
+  <section class="card wide">
+    <h2>Events</h2>
+    <pre id="log"></pre>
+  </section>
+</main>
+<script src="app.js"></script>
+</body>
+</html>
