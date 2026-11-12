@@ -17,6 +17,15 @@ const PAGES = [
 
 const root = document.getElementById('root');
 
+// 内嵌浏览器（CEF/旧 Chromium）里排障用：把未捕获错误留在窗口上
+window.__errors = [];
+window.addEventListener('error', (e) => {
+  if (window.__errors.length < 50) window.__errors.push(String(e.message || e.error));
+});
+window.addEventListener('unhandledrejection', (e) => {
+  if (window.__errors.length < 50) window.__errors.push('unhandled: ' + String(e.reason));
+});
+
 const app = {
   moduleState: null,
   user: null,
