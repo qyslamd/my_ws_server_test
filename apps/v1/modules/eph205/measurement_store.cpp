@@ -1,6 +1,7 @@
 #include "measurement_store.h"
 
 #include <algorithm>
+#include <ctime>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -29,6 +30,15 @@ std::string CsvCell(const std::string& text) {
   }
   out.push_back('"');
   return out;
+}
+
+std::string TimeText(std::int64_t ms) {
+  const std::time_t t = static_cast<std::time_t>(ms / 1000);
+  std::tm tm_buf = {};
+  localtime_s(&tm_buf, &t);
+  char buffer[32] = {};
+  std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &tm_buf);
+  return buffer;
 }
 
 std::string NumberText(const nlohmann::json& value) {
@@ -256,6 +266,52 @@ std::string MeasurementStore::ExportCsv(std::int64_t id,
         << NumberText(item.value("value", nlohmann::json())) << ','
         << CsvCell(item.value("result", "")) << ','
         << CsvCell(item.value("reason", "")) << '\n';
+  }
+  return out.str();
+}
+
+std::string MeasurementStore::ExportCsvMany(
+    const std::vector<std::int64_t>& ids, std::string& err) const {
+  std::vector<nlohmann::json> picked;
+  {
+    std::lock_guard<std::mutex> lock(mu_);
+    for (std::int64_t id : ids) {
+      for (const auto& record : records_) {
+        if (record.value("id", 0LL) == id) {
+          picked.push_back(record);
+          break;
+        }
+      }
+    }
+  }
+  if (picked.empty()) {
+    err = "没有可导出的记录";
+    return {};
+  }
+
+  std::ostringstream out;
+  out << "记录ID,时间,型号,编号,操作员,序号,P,N,线制,量程,下限(Ω),上限(Ω),"
+         "测量值(Ω),结果,原因\n";
+  for (const auto& record : picked) {
+    const auto product = record.value("product", nlohmann::json::object());
+    const std::int64_t id = record.value("id", 0LL);
+    const std::string when = TimeText(record.value("createdAt", 0LL));
+    const std::string model = product.value("model", "");
+    const std::string code = product.value("code", "");
+    const std::string op = record.value("operator", "");
+    for (const auto& item : record.value("items", nlohmann::json::array())) {
+      out << id << ',' << CsvCell(when) << ',' << CsvCell(model) << ','
+          << CsvCell(code) << ',' << CsvCell(op) << ','
+          << item.value("seq", 0) << ',' << item.value("p", 0) << ','
+          << item.value("n", 0) << ','
+          << (item.value("wire", 0) == 0 ? "二线" : "四线") << ','
+          << item.value("range", 0) << ','
+          << NumberText(item.value("minOhms", nlohmann::json())) << ','
+          << NumberText(item.value("maxOhms", nlohmann::json())) << ','
+          << NumberText(item.value("value", nlohmann::json())) << ','
+          << CsvCell(item.value("result", "")) << ','
+          << CsvCell(item.value("reason", "")) << '\n';
+    }
   }
   return out.str();
 }

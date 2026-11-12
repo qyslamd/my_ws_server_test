@@ -46,6 +46,10 @@ class MeasurementStore {
   // 导出为 CSV 文本；失败返回空串并写 err。
   std::string ExportCsv(std::int64_t id, std::string& err) const;
 
+  // 多条记录合成一张表，前面多出记录 ID/时间/型号等列。
+  std::string ExportCsvMany(const std::vector<std::int64_t>& ids,
+                            std::string& err) const;
+
   int Count() const;
 
  private:

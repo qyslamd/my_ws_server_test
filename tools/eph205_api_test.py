@@ -135,6 +135,13 @@ def main():
     sock.settimeout(20)
     print("  WS 会话已建立 sid=" + SID)
 
+    # 服务端以 --auth 运行时，调试/维护命令需要管理员角色
+    status, out = api("POST", "/api/v1/auth/login",
+                      {"username": "admin", "password": "admin"})
+    if status != 200:
+        raise RuntimeError(f"登录失败: {status} {out}")
+    print("  已以 admin 登录")
+
     print("\n[1] 启动仿真端")
     command("sim_start", {"port": SIM_PORT})
 
@@ -213,6 +220,14 @@ def main():
     status, out = api("POST", "/api/v1/commands/eph205/history_list",
                       {"offset": 0, "limit": 5})
     print("  history total:", out["result"]["total"])
+    ids = [row["id"] for row in out["result"]["rows"][:2]]
+    if ids:
+        status, out = api("POST", "/api/v1/commands/eph205/history_export_many",
+                          {"ids": ids})
+        rows = out["result"]["csv"].splitlines()
+        print(f"  批量导出 {len(ids)} 条 -> {len(rows)} 行")
+        print("   ", rows[0])
+        print("   ", rows[1])
     record_id = final.get("recordId")
     if record_id:
         status, out = api("POST", "/api/v1/commands/eph205/history_export",

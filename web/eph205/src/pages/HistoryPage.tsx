@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type Key } from 'react'
 import {
   App,
   Button,
@@ -12,6 +12,7 @@ import {
   Tag,
 } from 'antd'
 import { api } from '../api'
+import CompareDrawer from '../components/CompareDrawer'
 import {
   RESULT_TEXT,
   REASON_TEXT,
@@ -58,6 +59,9 @@ export default function HistoryPage({ wsOpen, role }: Props) {
   const [status, setStatus] = useState('')
   const [detail, setDetail] = useState<any>(null)
   const [loading, setLoading] = useState(false)
+  const [selected, setSelected] = useState<Key[]>([])
+  const [compare, setCompare] = useState<{ base: any; other: any } | null>(null)
+  const [compareOpen, setCompareOpen] = useState(false)
 
   const load = async (pageIndex = page, size = pageSize) => {
     if (!wsOpen) return
@@ -99,6 +103,39 @@ export default function HistoryPage({ wsOpen, role }: Props) {
     try {
       const out = await api.command('history_export', { id })
       downloadText(`measurement-${id}.csv`, out.csv)
+    } catch (err: any) {
+      message.error('导出失败: ' + err.message)
+    }
+  }
+
+  const openCompare = async () => {
+    if (selected.length !== 2) {
+      message.warning('请选择两条记录')
+      return
+    }
+    try {
+      const [x, y] = await Promise.all(
+        selected.map((id) => api.command('history_get', { id: Number(id) })),
+      )
+      const [base, other] =
+        (x.createdAt ?? 0) <= (y.createdAt ?? 0) ? [x, y] : [y, x]
+      setCompare({ base, other })
+      setCompareOpen(true)
+    } catch (err: any) {
+      message.error('读取失败: ' + err.message)
+    }
+  }
+
+  const exportMany = async () => {
+    if (selected.length === 0) {
+      return
+    }
+    try {
+      const out = await api.command('history_export_many', {
+        ids: selected.map((id) => Number(id)),
+      })
+      downloadText(`measurements-${out.count || selected.length}.csv`, out.csv)
+      message.success(`已导出 ${out.count || selected.length} 条记录`)
     } catch (err: any) {
       message.error('导出失败: ' + err.message)
     }
@@ -244,6 +281,16 @@ export default function HistoryPage({ wsOpen, role }: Props) {
             查询
           </Button>
           <span className="spacer" style={{ flex: 1 }} />
+          <span>已选 {selected.length} 条</span>
+          <Button
+            disabled={selected.length !== 2}
+            onClick={() => void openCompare()}
+          >
+            对比
+          </Button>
+          <Button disabled={selected.length === 0} onClick={() => void exportMany()}>
+            批量导出 CSV
+          </Button>
           <span>共 {total} 条</span>
         </div>
         <Table
@@ -252,6 +299,11 @@ export default function HistoryPage({ wsOpen, role }: Props) {
           loading={loading}
           columns={columns as any}
           dataSource={rows}
+          rowSelection={{
+            selectedRowKeys: selected,
+            onChange: (keys) => setSelected(keys),
+            preserveSelectedRowKeys: true,
+          }}
           pagination={{
             current: page,
             pageSize,
@@ -303,6 +355,13 @@ export default function HistoryPage({ wsOpen, role }: Props) {
           </>
         )}
       </Drawer>
+
+      <CompareDrawer
+        open={compareOpen}
+        onClose={() => setCompareOpen(false)}
+        base={compare?.base ?? null}
+        other={compare?.other ?? null}
+      />
     </div>
   )
 }

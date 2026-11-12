@@ -91,6 +91,7 @@ GET  /ws?sid=...             1:1 会话（先建 WS，REST 带 X-Session-Id）
 | `sim_start` / `sim_stop` | 仿真端开关 |
 | `sim_set` / `sim_config` / `sim_clear` | 点值覆盖 / 默认阻值 / 清空 |
 | `history_list` / `history_get` / `history_delete` / `history_export` | 历史 |
+| `history_export_many` | 多条记录合并导出，`{ids:[...]}` |
 
 作业 `measure_run` 输入：
 
@@ -203,11 +204,22 @@ python -I tools\edge_webdriver\eph205_e2e.py :: 真实 UI：仿真→连接→�
 | M2 | 三维视图（three.js 加载 help3d 的 OBJ/MTL） | 完成 |
 | M3 | Excel 导入（SheetJS） | 完成 |
 | M4 | 登录与角色（界面 + 服务端强制） | 完成 |
-| M5 | 历史快照/对比、批量导出 | 待做 |
+| M5 | 历史对比、批量导出 | 完成 |
 
 ---
 
-## 10. 实时读数（WS 数据流）
+## 10. 历史对比与批量导出
+
+历史页多选：
+
+- 选 2 条 → 「对比」：按 **(P,N)** 对齐两次测量，逐点显示基准值/对比值/差值，
+  并标出判定变化（红底）、只有一边有的点（灰底），顶部给出共同点、仅基准、
+  仅对比、判定变化、最大差值。对齐和差值都在浏览器里算，服务端只提供
+  `history_get`。
+- 选任意条 → 「批量导出 CSV」：走 `history_export_many`，服务端合并成一张表，
+  前几列是记录 ID/时间/型号/编号/操作员，后面是逐项结果，便于拿 Excel 透视。
+
+## 11. 实时读数（WS 数据流）
 
 测量过程中，模块把每条结果压进 `readings_`，底座每 10 ms 取一次，
 按 v1 帧格式推给订阅者：
@@ -224,7 +236,7 @@ records 块  重复的 [ts u64][len u32][payload]，payload 是一个 JSON 对�
 调试页的「原始命令」走 `raw`：服务端除正常应答外也接受 ACK（0x80），
 所以发未实现的命令（如 0x07 点检）能直接看到「命令不支持」而不是超时。
 
-## 11. 登录与角色
+## 12. 登录与角色
 
 两个内置账号（底座 `/api/v1/auth/*`）：
 
@@ -247,7 +259,7 @@ sim_start sim_stop sim_set sim_config sim_clear history_delete
 底座的钩子是 `v1::Module::AdminOnly(action)`，默认返回 false，
 不带认证时底座不调用它，所以对其它业务模块零影响。
 
-## 12. 三维视图
+## 13. 三维视图
 
 资产来自参考项目 `src/app/assets/help3d/`，原样拷到 `web/eph205/public/help3d/`，
 构建时由 Vite 复制到 `www/v1/eph205/help3d/`。
@@ -263,7 +275,7 @@ sim_start sim_stop sim_set sim_config sim_clear history_delete
 实现：`web/eph205/src/components/ThreeViewer.tsx`，OrbitControls 旋转/缩放/平移，
 点击部件高亮并在工具栏显示名称。
 
-## 13. 注意事项
+## 14. 注意事项
 
 - 本分支的任何内容都不得合入 `develop`、不得推送。
 - 参考项目只读，不要把它整段业务代码粘进来。

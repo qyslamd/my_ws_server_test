@@ -428,7 +428,7 @@ nlohmann::json Eph205Module::Describe() const {
             "set_param", "get_params", "measure", "reset", "frame_log",
             "raw", "check_point", "sim_start", "sim_stop", "sim_set",
             "sim_config", "sim_clear", "history_list", "history_get",
-            "history_delete", "history_export"}},
+            "history_delete", "history_export", "history_export_many"}},
           {"jobs", {"measure_run"}}};
 }
 
@@ -866,6 +866,34 @@ bool Eph205Module::HandleCommand(const std::string& action,
       return false;
     }
     result = {{"id", id}, {"csv", csv}, {"bytes", csv.size()}};
+    return true;
+  }
+
+  if (action == "history_export_many") {
+    if (!payload.contains("ids") || !payload["ids"].is_array() ||
+        payload["ids"].empty()) {
+      err = "ids 不能为空";
+      return false;
+    }
+    std::vector<std::int64_t> ids;
+    for (const auto& item : payload["ids"]) {
+      if (item.is_number_integer()) {
+        ids.push_back(item.get<std::int64_t>());
+      }
+    }
+    if (ids.empty()) {
+      err = "ids 里没有有效记录号";
+      return false;
+    }
+    std::string e;
+    const std::string csv = store_.ExportCsvMany(ids, e);
+    if (csv.empty()) {
+      err = e.empty() ? "导出失败" : e;
+      return false;
+    }
+    result = {{"count", ids.size()},
+              {"csv", csv},
+              {"bytes", csv.size()}};
     return true;
   }
 

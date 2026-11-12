@@ -79,6 +79,20 @@ def find(sid, xpath):
     return value["element-6066-11e4-a52e-4f735466cecf"]
 
 
+def click_js(sid, element_id):
+    """隐藏/被遮挡的元素用 JS 直接 click，绕开 interactability 检查。"""
+    return call(sid, "POST", "/execute/sync", {
+        "script": "arguments[0].click(); return true;",
+        "args": [{"element-6066-11e4-a52e-4f735466cecf": element_id}],
+    })
+
+
+def find_all(sid, xpath):
+    items = call(sid, "POST", "/elements",
+                 {"using": "xpath", "value": xpath})
+    return [i["element-6066-11e4-a52e-4f735466cecf"] for i in items]
+
+
 def wait_xpath(sid, xpath, tries=100, label=None):
     for _ in range(tries):
         try:
@@ -289,6 +303,31 @@ def main():
             wait_xpath(sid, f"//*[normalize-space(text())='{marker}']",
                        label=marker)
             print(f"  页面「{tab}」正常")
+            if tab == "历史":
+                for _ in range(80):
+                    checks = find_all(sid, "//tbody/tr[contains(@class,'ant-table-row')]//label[contains(@class,'ant-checkbox-wrapper')]")
+                    if len(checks) >= 2:
+                        break
+                    time.sleep(0.25)
+                else:
+                    raise RuntimeError("历史记录不足两条，无法对比")
+                for box in checks[:2]:
+                    click_js(sid, box)
+                    time.sleep(0.2)
+                for _ in range(40):
+                    if js(sid, "return document.body.innerText.includes('已选 2 条');"):
+                        break
+                    time.sleep(0.25)
+                btn = wait_xpath(sid, "//button[normalize-space(.)='对比']")
+                call(sid, "POST", f"/element/{btn}/click", {})
+                wait_xpath(sid, "//*[normalize-space(text())='测量对比']",
+                           label="对比抽屉")
+                wait_xpath(sid, "//*[contains(text(), '最大差值')]",
+                           label="最大差值")
+                print("  两条记录对比打开正常")
+                close = wait_xpath(sid, "//button[contains(@class,'ant-drawer-close')]")
+                click_js(sid, close)
+                time.sleep(0.6)
             if tab == "调试":
                 # 点检测位 0x07：仿真器未实现，应返回"命令不支持"
                 btn = wait_xpath(sid, "//button[normalize-space(.)='点检']")
