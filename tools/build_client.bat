@@ -3,8 +3,8 @@ setlocal enabledelayedexpansion
 chcp 936 >nul
 
 :: ============================================================
-:: 构建 EPH205 桌面客户端（CEF + Win32，Release）
-:: 需要 3rdparty\cef-109（不入库），见 docs\CEF客户端方案.md
+:: build EPH205 Desktop Client (CEF + Win32, Release)
+:: requires 3rdparty\cef-109 (not tracked by git); see docs (CEF client design)
 :: ============================================================
 
 set "SCRIPT_DIR=%~dp0"
