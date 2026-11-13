@@ -26,6 +26,29 @@ add_custom_target(copy_www ALL
   VERBATIM)
 
 # ============================================================
+# vendored 第三方库（源码入库，版本写进目录名）
+#   mongoose-7.23     HTTP/WS
+#   sqlite-3540100    SQLite amalgamation（业务落库用）
+#   3rdparty/cef-109  CEF 二进制约 260 MB，不入库，见 docs/CEF客户端方案.md
+# ============================================================
+add_library(sqlite3 STATIC
+  "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/sqlite-3540100/sqlite3.c"
+)
+target_include_directories(sqlite3 PUBLIC
+  "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/sqlite-3540100"
+)
+target_compile_definitions(sqlite3 PRIVATE
+  SQLITE_THREADSAFE=1              # 多线程模式：一个连接一个线程
+  SQLITE_DQS=0                     # 禁止用双引号当字符串字面量
+  SQLITE_OMIT_LOAD_EXTENSION       # 不加载外部扩展
+  SQLITE_DEFAULT_FOREIGN_KEYS=1
+)
+if(MSVC)
+  # 第三方源码不参与我们的 /W4，避免淹没自己的告警
+  target_compile_options(sqlite3 PRIVATE /W0)
+endif()
+
+# ============================================================
 # 子目标:mongoose 版双通道 WS 服务端
 # ============================================================
 add_subdirectory(apps/mongoose)
