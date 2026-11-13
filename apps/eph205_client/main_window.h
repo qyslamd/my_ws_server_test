@@ -2,8 +2,10 @@
 
 // 一个最小的 Win32 窗口：没有菜单栏、没有工具栏、没有地址栏。
 // 整个客户区就是一个 CEF 子窗口。
-
+// clang-format off
 #include <windows.h>
+
+// clang-format on
 
 #include <string>
 
@@ -32,7 +34,8 @@ class MainWindow {
   void Destroy();
 
  private:
-  static LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam);
+  static LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wparam,
+                                  LPARAM lparam);
   LRESULT HandleMessage(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam);
   void Log(const char* text);
 

@@ -31,8 +31,9 @@ bool MainWindow::Create(HINSTANCE instance) {
   wc.hIconSm = wc.hIcon;
   RegisterClassExW(&wc);
 
-  hwnd_ = CreateWindowExW(0, kClassName, kTitle, WS_OVERLAPPEDWINDOW, CW_USEDEFAULT,
-                          CW_USEDEFAULT, 1280, 800, nullptr, nullptr, instance, this);
+  hwnd_ = CreateWindowExW(0, kClassName, kTitle, WS_OVERLAPPEDWINDOW,
+                          CW_USEDEFAULT, CW_USEDEFAULT, 1280, 800, nullptr,
+                          nullptr, instance, this);
   if (hwnd_ == nullptr) {
     return false;
   }
@@ -53,20 +54,26 @@ bool MainWindow::Create(HINSTANCE instance) {
   client_ = new ClientHandler(this, options_);
   const std::string url =
       "http://127.0.0.1:" + std::to_string(options_.port) + "/eph205/";
-  CefBrowserHost::CreateBrowser(info, client_.get(), url, settings, nullptr, nullptr);
+  CefBrowserHost::CreateBrowser(info, client_.get(), url, settings, nullptr,
+                                nullptr);
   return true;
 }
 
-void MainWindow::SetBrowser(CefRefPtr<CefBrowser> browser) { browser_ = browser; }
+void MainWindow::SetBrowser(CefRefPtr<CefBrowser> browser) {
+  browser_ = browser;
+}
 
-LRESULT CALLBACK MainWindow::WndProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam) {
+LRESULT CALLBACK MainWindow::WndProc(HWND hwnd, UINT message, WPARAM wparam,
+                                     LPARAM lparam) {
   if (message == WM_NCCREATE) {
     auto* cs = reinterpret_cast<CREATESTRUCTW*>(lparam);
-    SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(cs->lpCreateParams));
+    SetWindowLongPtrW(hwnd, GWLP_USERDATA,
+                      reinterpret_cast<LONG_PTR>(cs->lpCreateParams));
     // 要交给默认处理：窗口标题是在创建过程中由 WM_SETTEXT 设进去的
     return DefWindowProcW(hwnd, message, wparam, lparam);
   }
-  auto* self = reinterpret_cast<MainWindow*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+  auto* self =
+      reinterpret_cast<MainWindow*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
   if (self == nullptr) {
     return DefWindowProcW(hwnd, message, wparam, lparam);
   }
@@ -115,11 +122,24 @@ void MainWindow::Destroy() {
   }
 }
 
-LRESULT MainWindow::HandleMessage(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam) {
+LRESULT MainWindow::HandleMessage(HWND hwnd, UINT message, WPARAM wparam,
+                                  LPARAM lparam) {
   switch (message) {
-    case WM_SIZE:
+    case WM_SIZE: {
+      // CEF 窗口模式下，必须手动调整子窗口尺寸，WasResized 无效
       if (browser_ && browser_->GetHost()) {
-        browser_->GetHost()->WasResized();
+        if (HWND child = browser_->GetHost()->GetWindowHandle()) {
+          // 最小化时 lp 是 0×0，SetWindowPos 成 0 尺寸无害；
+          // 也可以加 type != SIZE_MINIMIZED 判断后跳过。
+          SetWindowPos(child, nullptr, 0, 0, LOWORD(lparam), HIWORD(lparam),
+                       SWP_NOZORDER | SWP_NOACTIVATE);
+        }
+      }
+      return 0;
+    }
+    case WM_ENTERSIZEMOVE:
+      if (browser_ && browser_->GetHost()) {
+        browser_->GetHost()->NotifyMoveOrResizeStarted();
       }
       return 0;
 
