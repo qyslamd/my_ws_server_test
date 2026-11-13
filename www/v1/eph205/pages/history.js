@@ -125,6 +125,31 @@ export function createHistoryPage({ getState, getRole }) {
     try {
       const record = await api.command('history_get', { id });
       const s = record.summary || {};
+      const detailTable = createTable({
+        columns: [
+          { title: '序号', width: 60, render: (r) => r.seq },
+          { title: 'P', width: 60, render: (r) => r.p },
+          { title: 'N', width: 60, render: (r) => r.n },
+          { title: '线制', width: 60, render: (r) => (r.wire === 0 ? '二线' : '四线') },
+          { title: '量程', width: 60, render: (r) => `R${r.range}` },
+          {
+            title: '测量值 Ω',
+            width: 110,
+            render: (r) => (r.value === null || r.value === undefined ? '-' : Number(r.value).toFixed(3)),
+          },
+          {
+            title: '判定',
+            width: 90,
+            render: (r) => el('span', { class: `tag ${RESULT_CLASS[r.result] || ''}`, text: RESULT_TEXT[r.result] || r.result }),
+          },
+          { title: '原因', render: (r) => REASON_TEXT[r.reason] || r.reason || '' },
+        ],
+        pageSize: 100,
+        rowKey: (r) => `${r.seq}-${r.p}-${r.n}`,
+        height: 460,
+      });
+      detailTable.setRows(record.items || []);
+
       const body = el(
         'div',
         {},
@@ -137,29 +162,7 @@ export function createHistoryPage({ getState, getRole }) {
           el('span', { class: 'tag warn', text: `测量失败 ${s.measureFailed ?? 0}` }),
           el('span', { class: 'tag', text: `通过率 ${Number(s.passRate ?? 0).toFixed(1)}%` }),
         ),
-        createTable({
-          columns: [
-            { title: '序号', width: 60, render: (r) => r.seq },
-            { title: 'P', width: 60, render: (r) => r.p },
-            { title: 'N', width: 60, render: (r) => r.n },
-            { title: '线制', width: 60, render: (r) => (r.wire === 0 ? '二线' : '四线') },
-            { title: '量程', width: 60, render: (r) => `R${r.range}` },
-            {
-              title: '测量值 Ω',
-              width: 110,
-              render: (r) => (r.value === null || r.value === undefined ? '-' : Number(r.value).toFixed(3)),
-            },
-            {
-              title: '判定',
-              width: 90,
-              render: (r) => el('span', { class: `tag ${RESULT_CLASS[r.result] || ''}`, text: RESULT_TEXT[r.result] || r.result }),
-            },
-            { title: '原因', render: (r) => REASON_TEXT[r.reason] || r.reason || '' },
-          ],
-          pageSize: 100,
-          rowKey: (r) => `${r.seq}-${r.p}-${r.n}`,
-          height: 460,
-        }).el,
+        detailTable.el,
       );
       const drawer = openDrawer({
         title: `记录 #${record.id} · ${record.product?.model || '未知型号'}`,

@@ -335,6 +335,22 @@ def main():
                 close = wait_xpath(sid, "//button[contains(@class,'close')]")
                 click_js(sid, close)
                 time.sleep(0.6)
+
+                # 详情抽屉：不仅要打开，明细表里必须真的有行
+                detail = wait_xpath(sid, "//button[normalize-space(.)='详情']")
+                call(sid, "POST", f"/element/{detail}/click", {})
+                wait_xpath(sid, "//*[contains(text(), '通过率')]", label="详情抽屉")
+                time.sleep(0.6)
+                drawer = js(sid, "const d=document.querySelector('.drawer-body');"
+                                 "return d ? d.innerText : '';")
+                if "暂无数据" in drawer or "共 0 条" in drawer:
+                    raise RuntimeError("详情抽屉没有明细行")
+                rows = js(sid, "const d=document.querySelector('.drawer-body');"
+                               "return d ? d.querySelectorAll('tbody tr').length : 0;")
+                print(f"  详情明细行数: {rows}")
+                close = wait_xpath(sid, "//button[contains(@class,'close')]")
+                click_js(sid, close)
+                time.sleep(0.6)
             if tab == "调试":
                 # 点检测位 0x07：仿真器未实现，应返回"命令不支持"
                 btn = wait_xpath(sid, "//button[normalize-space(.)='点检']")
