@@ -63,7 +63,7 @@ add_library(eph205_module STATIC
   modules/eph205/win_registry.h
 )
 
-target_link_libraries(eph205_module PUBLIC v1_base)
+target_link_libraries(eph205_module PUBLIC v1_base sqlite3)
 if(MSVC)
   # advapi32 用于注册表枚举串口
   target_link_libraries(eph205_module PUBLIC advapi32)

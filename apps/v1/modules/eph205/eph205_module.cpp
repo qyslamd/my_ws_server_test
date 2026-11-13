@@ -192,7 +192,7 @@ Eph205Module::Eph205Module() {
   std::error_code ec;
   std::filesystem::create_directories(dir, ec);
   std::string store_err;
-  if (!store_.Open(dir + "/measurements.jsonl", store_err)) {
+  if (!store_.Open(dir + "/measurements.db", store_err)) {
     Log("存储打开失败: " + store_err);
   }
 
