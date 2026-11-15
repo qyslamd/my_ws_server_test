@@ -89,3 +89,6 @@ Thumbs.db
 /data/
 # ---------- 客户端打包产物 ----------
 /dist/
+
+
+/examples
