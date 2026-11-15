@@ -1,0 +1,477 @@
+/* =========================================================================
+   EPH205 应用外壳与页面布局（Material Design 3 令牌驱动）
+   规范见 docs 中的 MD3 设计规范；这里只写结构与本项目的页面模式。
+   ========================================================================= */
+
+/* ---------------------------------------------------------------- 登录页 */
+.login-page {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  background: var(--md-surface);
+}
+
+.login-brand {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 48px;
+  overflow: hidden;
+  background:
+    radial-gradient(1200px 600px at 10% 0%, rgba(255, 255, 255, 0.16), transparent 60%),
+    linear-gradient(150deg, #0f3d5c 0%, #1b5e8c 45%, #2f7fae 100%);
+  color: #fff;
+}
+
+.login-brand::after {
+  content: "";
+  position: absolute;
+  right: -120px;
+  bottom: -160px;
+  width: 520px;
+  height: 520px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 0 0 60px rgba(255, 255, 255, 0.05),
+              0 0 0 140px rgba(255, 255, 255, 0.035);
+}
+
+.login-brand .logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: var(--md-title-large-size);
+  line-height: var(--md-title-large-line);
+  font-weight: var(--md-title-large-weight);
+}
+
+.login-brand .logo-mark {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--md-shape-md);
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.login-brand h1 {
+  font-size: var(--md-display-small-size);
+  line-height: var(--md-display-small-line);
+  font-weight: var(--md-display-small-weight);
+  margin: 0 0 16px;
+}
+
+.login-brand .tagline {
+  font-size: var(--md-body-large-size);
+  line-height: 1.8;
+  font-weight: var(--md-body-large-weight);
+  color: rgba(255, 255, 255, 0.82);
+  max-width: 420px;
+}
+
+.login-brand .facts {
+  display: flex;
+  gap: 40px;
+  margin-top: 40px;
+}
+
+.login-brand .fact .v {
+  font-size: var(--md-headline-medium-size);
+  line-height: var(--md-headline-medium-line);
+  font-weight: var(--md-headline-medium-weight);
+  font-variant-numeric: tabular-nums;
+}
+
+.login-brand .fact .k {
+  font-size: var(--md-body-small-size);
+  line-height: var(--md-body-small-line);
+  font-weight: var(--md-body-small-weight);
+  color: rgba(255, 255, 255, 0.7);
+  margin-top: 4px;
+}
+
+.login-panel {
+  display: grid;
+  place-items: center;
+  padding: 48px;
+  background: var(--md-surface);
+}
+
+.login-card { width: min(400px, 100%); }
+
+.login-card h2 {
+  font-size: var(--md-headline-medium-size);
+  line-height: var(--md-headline-medium-line);
+  font-weight: var(--md-headline-medium-weight);
+  margin: 0 0 8px;
+}
+
+.login-card .sub {
+  font-size: var(--md-body-medium-size);
+  line-height: var(--md-body-medium-line);
+  color: var(--md-on-surface-variant);
+  margin: 0 0 32px;
+}
+
+.login-card .field { margin-bottom: 20px; }
+.login-card .btn { width: 100%; margin-top: 8px; }
+.login-card .error-text { min-height: 16px; margin-bottom: 8px; }
+
+.login-foot {
+  margin-top: 32px;
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--md-body-small-size);
+  line-height: var(--md-body-small-line);
+  color: var(--md-on-surface-variant);
+}
+
+/* ---------------------------------------------------------------- 外壳 */
+.app {
+  display: grid;
+  grid-template-columns: var(--md-rail-width) 1fr;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 0;
+  background: var(--md-surface-container);
+  border-right: 1px solid var(--md-outline-variant);
+}
+
+.rail-logo {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 12px;
+  border-radius: var(--md-shape-md);
+  background: var(--md-primary);
+  color: var(--md-on-primary);
+}
+
+.rail-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 80px;
+  padding: 12px 0 10px;
+  border: none;
+  border-radius: var(--md-shape-lg);
+  background: transparent;
+  color: var(--md-on-surface-variant);
+  font-size: var(--md-label-medium-size);
+  line-height: var(--md-label-medium-line);
+  font-weight: var(--md-label-medium-weight);
+  cursor: pointer;
+  transition: background var(--md-duration-short) var(--md-easing-standard),
+              color var(--md-duration-short) var(--md-easing-standard);
+}
+
+.rail-item:hover { background: var(--hover-1); }
+
+.rail-item.active {
+  background: var(--md-secondary-container);
+  color: var(--md-on-secondary-container);
+}
+
+.rail-item.active::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 50%;
+  width: 4px;
+  height: 28px;
+  transform: translateY(-50%);
+  border-radius: var(--md-shape-full);
+  background: var(--md-primary);
+}
+
+.rail-spacer { flex: 1; }
+
+.main {
+  display: grid;
+  grid-template-rows: var(--md-topbar-height) 1fr;
+  min-width: 0;
+  height: 100vh;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 24px;
+  background: var(--md-surface);
+  border-bottom: 1px solid var(--md-outline-variant);
+}
+
+.topbar .page-title {
+  font-size: var(--md-title-large-size);
+  line-height: var(--md-title-large-line);
+  font-weight: var(--md-title-large-weight);
+}
+
+.topbar .page-sub {
+  font-size: var(--md-body-small-size);
+  line-height: var(--md-body-small-line);
+  color: var(--md-on-surface-variant);
+  margin-top: 2px;
+}
+
+.topbar .clock {
+  font-family: var(--md-font-mono);
+  font-size: var(--md-title-small-size);
+  line-height: var(--md-title-small-line);
+  font-weight: var(--md-title-small-weight);
+  color: var(--md-on-surface-variant);
+  font-variant-numeric: tabular-nums;
+}
+
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--md-shape-full);
+  background: var(--md-tertiary-container);
+  color: var(--md-on-tertiary-container);
+  font-size: var(--md-label-large-size);
+  line-height: var(--md-label-large-line);
+  font-weight: var(--md-label-large-weight);
+}
+
+.content {
+  overflow: auto;
+  padding: var(--md-gutter);
+  background: var(--md-surface);
+}
+
+/* 用 :not() 而不是 .page，否则会被页根节点上的布局类（.stack 等）覆盖：
+   .page 与 .stack 同为 0-1-0，后者定义在后，display:none 直接失效。 */
+.page:not(.active) { display: none; }
+
+.page.active {
+  display: block;
+  animation: page-in var(--md-duration-medium) var(--md-easing-standard);
+}
+
+@keyframes page-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+.page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.page-head h1 {
+  font-size: var(--md-headline-small-size);
+  line-height: var(--md-headline-small-line);
+  font-weight: var(--md-headline-small-weight);
+  margin: 0;
+}
+
+.page-head .desc {
+  font-size: var(--md-body-medium-size);
+  line-height: var(--md-body-medium-line);
+  color: var(--md-on-surface-variant);
+  margin: 4px 0 0;
+}
+
+/* ---------------------------------------------------------------- 页面卡片
+   默认卡片的 surface-container-low 与页面底 surface 只差 6/255，在车间显示器
+   上看不出边界。改用规范 §8.4 的 elevated 变体（lowest + elevation-1）。 */
+.page .card:not(.filled):not(.outlined) {
+  background: var(--md-surface-container-lowest);
+  box-shadow: var(--md-elevation-1);
+}
+
+/* 深色下 lowest 比页面底还暗，卡片会看起来是凹进去的。
+   深色按 MD3 的惯例改成比页面亮一级、不加阴影（规范 §4.2）。 */
+:root[data-theme="dark"] .page .card:not(.filled):not(.outlined) {
+  background: var(--md-surface-container-low);
+  box-shadow: none;
+}
+
+/* 对话框正文 */
+.drawer-body { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+/* ---------------------------------------------------------------- 布局工具 */
+.stack { display: flex; flex-direction: column; gap: 16px; }
+.grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.grid-main-side {
+  display: grid;
+  grid-template-columns: 1.9fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+.grid-1-1 { display: grid; grid-template-columns: 1.15fr 1fr; gap: 20px; align-items: start; }
+
+/* Grid 子项默认 min-width:auto，宽表格会把列撑破（规范 §9.3） */
+.grid-2 > *, .grid-4 > *, .grid-main-side > *, .grid-1-1 > * { min-width: 0; }
+
+@media (max-width: 1100px) {
+  .grid-main-side, .grid-1-1, .grid-2 { grid-template-columns: minmax(0, 1fr); }
+  .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+/* ---------------------------------------------------------------- KPI */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.kpi {
+  border-radius: var(--md-shape-md);
+  background: var(--md-surface-container-low);
+  padding: 12px 16px;
+}
+
+.kpi .v {
+  font-family: var(--md-font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--md-headline-small-size);
+  line-height: var(--md-headline-small-line);
+  font-weight: var(--md-headline-small-weight);
+}
+
+/* 深色下卡片是 container-low，KPI 与表头若还用同级色就看不见了，各抬一级 */
+:root[data-theme="dark"] .kpi { background: var(--md-surface-container-high); }
+:root[data-theme="dark"] table.data th { background: var(--md-surface-container-high); }
+
+.kpi .v.ok { color: var(--md-success); }
+.kpi .v.bad { color: var(--md-error); }
+.kpi .v.warn { color: var(--md-warning); }
+.kpi .k {
+  font-size: var(--md-body-small-size);
+  line-height: var(--md-body-small-line);
+  color: var(--md-on-surface-variant);
+  margin-top: 2px;
+}
+
+/* ---------------------------------------------------------------- 表格补充 */
+table.data td .field input,
+table.data td .field select {
+  height: 36px;
+  padding: 0 10px;
+  font-size: var(--md-body-medium-size);
+}
+
+table.data tr.row-error td { background: var(--row-error); }
+table.data tr.row-error td .val-bad,
+table.data tr.row-error td.bad { color: var(--md-error); font-weight: 500; }
+table.data tr.row-selected td { background: var(--row-selected); }
+table.data tr.row-partial td { background: var(--hover-1); }
+table.data td.tight { padding: 4px 8px; }
+
+.pager {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 4px 0;
+  font-size: var(--md-body-small-size);
+  line-height: var(--md-body-small-line);
+  color: var(--md-on-surface-variant);
+}
+
+/* ---------------------------------------------------------------- 205 专用 */
+.canvas-host {
+  width: 100%;
+  height: 150px;
+  border-radius: var(--md-shape-sm);
+  overflow: hidden;
+  background: var(--md-surface-container-high);
+  display: block;
+}
+
+.viewer-host {
+  width: 100%;
+  height: 460px;
+  border-radius: var(--md-shape-sm);
+  overflow: hidden;
+  background: var(--md-scene-bg);
+}
+
+.log-view {
+  height: 200px;
+  overflow: auto;
+  padding: 12px;
+  border-radius: var(--md-shape-sm);
+  background: var(--md-surface-container-highest);
+  color: var(--md-on-surface);
+  font-family: var(--md-font-mono);
+  font-size: 12px;
+  line-height: 1.7;
+  white-space: pre;
+}
+
+.kv { display: flex; flex-wrap: wrap; gap: 8px 24px; }
+.kv .item { display: flex; align-items: baseline; gap: 8px; }
+.kv .k {
+  font-size: var(--md-body-small-size);
+  line-height: var(--md-body-small-line);
+  color: var(--md-on-surface-variant);
+}
+.kv .v { font-size: var(--md-body-medium-size); font-weight: 500; }
+
+.empty-hint {
+  padding: 24px;
+  text-align: center;
+  color: var(--md-on-surface-variant);
+  font-size: var(--md-body-small-size);
+}
+
+/* 表格里的紧凑输入 */
+.inline-input {
+  height: 32px;
+  width: 100%;
+  padding: 0 8px;
+  border: 1px solid var(--md-outline-variant);
+  border-radius: var(--md-shape-xs);
+  background: var(--md-surface-container-high);
+  color: var(--md-on-surface);
+  font-size: var(--md-body-medium-size);
+}
+.inline-input:focus { outline: 2px solid var(--md-primary); outline-offset: -1px; }
+
+/* ---------------------------------------------------------------- 通用工具类 */
+.mono {
+  font-family: var(--md-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.delta-warn { color: var(--md-warning); font-weight: 500; }
+
+/* 页面内提示条（不是 snackbar，承载需要阅读的信息） */
+.banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 16px;
+  border-radius: var(--md-shape-sm);
+  background: var(--md-surface-container-high);
+  color: var(--md-on-surface);
+  font-size: var(--md-body-medium-size);
+  line-height: var(--md-body-medium-line);
+}
+.banner .icon { margin-top: 1px; flex: none; }
+.banner.warning { background: var(--md-warning-container); color: var(--md-on-warning-container); }
+.banner.error { background: var(--md-error-container); color: var(--md-on-error-container); }
+.banner.success { background: var(--md-success-container); color: var(--md-on-success-container); }
+
