@@ -49,19 +49,35 @@ www/v1/eph205/                前端构建产物（gitignore）
 `www/v1/eph205/` 里的就是上线用的文件，没有打包步骤：
 
 ```text
-index.html       import map 把 "three" 指到 ./vendor/three.module.js
-app.js           启动、登录、页签、状态轮询
-lib/             api（REST + WS 帧解析）、ui（表格/抽屉/toast）、model（导入导出）
-pages/           测试 / 调试 / 历史 / 工具 / 帮助
-vendor/          three.module.js + three.core.js + 三个 addon + xlsx.full.min.js
+index.html        import map 把 "three" 指到 ./vendor/three.module.js
+assets/tokens.css 设计令牌：色彩/字阶/形状/高程/动效 + 深色覆盖
+assets/md3.css    基础组件：按钮/卡片/芯片/表格/输入/开关/对话框/Snackbar
+assets/app.css    应用外壳（导航栏、顶栏、页面模式）与 205 专用样式
+assets/icons.js   内联 SVG 图标集，暴露 window.icon
+app.js            启动、登录、导航、状态轮询、页面切换
+lib/              api（REST + WS 帧解析）、ui（表格/对话框/toast/图标）、model（导入导出）
+pages/            测试 / 调试 / 历史 / 工具 / 帮助
+vendor/           three.module.js + three.core.js + 三个 addon + xlsx.full.min.js
 ```
 
-- 不用 React / Vue：页面就五个，状态只有"设备、作业进度、登录用户"，直接操作 DOM。
-- 不用 antd：表格、抽屉、toast 在 `lib/ui.js` 里自己实现（约 250 行）。
+- 视觉按 Material Design 3 定制规范（工业场景调色板）重做，参照实现见规范附录。
+  **颜色/字号/圆角/阴影一律走 CSS 变量**，组件里不写死 hex，深色主题才对得上；
+  CEF 109 不支持 `color-mix()`，交互态用 `tokens.css` 里的预置 rgba 变量。
+- 不用 React / Vue / antd：页面就五个，状态只有"设备、作业进度、登录用户"，直接操作 DOM。
+  表格、对话框、toast 在 `lib/ui.js` 里自己实现（约 280 行）。
 - three.js 用 `import` 静态引入但只在帮助页动态 `import()`，首屏不加载。
 - xlsx 用 `<script>` 懒加载，第一次导入 Excel 才下载。
-- 视觉按桌面版 QSS 的 token 复刻：主色 `#0078D4`、页面底 `#f5f6fa`、
-  表头 `#f5f6fa`、表格选中 `#cce4f7`、标题靛蓝 `#1a237e`。
+
+两个改版时踩过的坑，改前端前先读：
+
+1. **页面切换靠 `.page:not(.active) { display:none }`**。页根节点挂着 `.stack`，
+   与 `.page` 权重相同、定义在后，用 `.page { display:none }` 会被覆盖，
+   结果是五个页面全堆在一屏里（只看得见最上面那个）。
+2. **切页要调 `page.setActive(bool)`**。历史页的首次查询、调试/工具页的日志轮询
+   都挂在它上面；只在 `switchPage` 里切 class 而不调它，历史永远是"还没有历史记录"，
+   日志永远是"暂无日志"。
+3. 图标字符串（`icon()` 的返回值）**当子节点传给 `el()` 会被转义成文本**，
+   屏幕上会直接出现 `<svg ...>`。需要图标与文字并排时用 `iconEl()`。
 
 ## 3. 线程模型
 
