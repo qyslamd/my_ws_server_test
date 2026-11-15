@@ -37,6 +37,8 @@ class V1Server {
     uint64_t window = 1048576;
     uint64_t outstanding = 0;
     bool meta_sent = false;
+    // 额度耗尽开始的时刻（0 表示没耗尽），用于节流日志
+    uint64_t stalled_ms = 0;
   };
   struct Session {
     std::string sid;

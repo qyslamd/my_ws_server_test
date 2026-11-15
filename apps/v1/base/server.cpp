@@ -472,6 +472,11 @@ void V1Server::OnHttp(mg_connection* c, mg_http_message* hm) {
         Subscription sub;
         sub.window = item.value("window", 1048576ULL);
         sub.meta_sent = false;
+        // 重订阅不清欠账，否则客户端靠"再订阅一次"就能把窗口翻倍
+        auto existing = s->subs.find(id);
+        if (existing != s->subs.end()) {
+          sub.outstanding = existing->second.outstanding;
+        }
         s->subs[id] = sub;
         out.push_back({{"streamId", id},
                        {"window", sub.window},
@@ -705,8 +710,19 @@ void V1Server::OnWsMsg(mg_connection* c, mg_ws_message* wm) {
     return;
   }
   for (const auto& item : msg["streams"]) {
-    const uint32_t id = item.value("id", 0u);
-    const uint64_t bytes = item.value("bytes", 0ULL);
+    if (!item.is_object()) {
+      continue;
+    }
+    // 只接受非负整数：负数或字符串会让 get<uint64_t>() 抛异常，
+    // 异常穿过 mongoose 的回调栈不是我们想要的死法。
+    const auto id_it = item.find("id");
+    const auto bytes_it = item.find("bytes");
+    if (id_it == item.end() || !id_it->is_number_unsigned() ||
+        bytes_it == item.end() || !bytes_it->is_number_unsigned()) {
+      continue;
+    }
+    const uint32_t id = static_cast<uint32_t>(id_it->get<uint64_t>());
+    const uint64_t bytes = bytes_it->get<uint64_t>();
     auto sub = it->second.subs.find(id);
     if (sub != it->second.subs.end()) {
       sub->second.outstanding =
@@ -789,14 +805,47 @@ void V1Server::Tick() {
     if (owner == nullptr) {
       continue;
     }
+    // 额度 = window - 已发未归还。window == 0 表示"只订阅不推数据"
+    // （规范 §8.2），此时 available 天然是 0，不必单独判断。
+    const uint64_t available =
+        sub.window > sub.outstanding ? sub.window - sub.outstanding : 0;
+    if (available == 0) {
+      // 没额度就不取数。反过来先 Produce 再丢，属于"数据被消费但发不出去"
+      // 的静默丢失，规范 §8.1 不允许。
+      if (sub.stalled_ms == 0) {
+        sub.stalled_ms = now;
+        if (sub.window == 0) {
+          Log("stream " + std::to_string(id) + " window=0，只订阅不推数据");
+        } else {
+          Log("stream " + std::to_string(id) + " 额度耗尽，暂停推送（window=" +
+              std::to_string(sub.window) + "，未归还=" +
+              std::to_string(sub.outstanding) + "）");
+        }
+      }
+      continue;
+    }
+
     std::vector<uint8_t> data;
     std::vector<uint8_t> records;
     std::string meta;
     if (!owner->Produce(id, now, data, records, meta)) {
       continue;
     }
-    if (sub.window > 0 && sub.outstanding >= sub.window) {
-      continue;
+    if (data.empty() && records.empty()) {
+      continue;  // 空帧不占 seq
+    }
+    if (sub.stalled_ms != 0) {
+      Log("stream " + std::to_string(id) + " 恢复推送（暂停 " +
+          std::to_string(now - sub.stalled_ms) + " ms）");
+      sub.stalled_ms = 0;
+    }
+
+    const uint64_t payload = data.size() + records.size();
+    if (payload > available) {
+      // 单帧不能拆分，允许超发一帧，欠账最多超出 window 一帧。
+      // 规范的做法是底座持有环形缓冲、溢出报 overrun；这里还没有缓冲层。
+      Log("stream " + std::to_string(id) + " 单帧 " + std::to_string(payload) +
+          " B 超过可用额度 " + std::to_string(available) + " B，超发一帧");
     }
     const bool with_meta = !sub.meta_sent;
     const uint32_t seq = ++seqs_[id];
@@ -806,7 +855,7 @@ void V1Server::Tick() {
                    records);
     mg_ws_send(s->ws, frame.data(), frame.size(), WEBSOCKET_OP_BINARY);
     sub.meta_sent = true;
-    sub.outstanding += data.size() + records.size();
+    sub.outstanding += payload;
   }
 }
 
