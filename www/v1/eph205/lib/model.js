@@ -17,11 +17,12 @@ export const REASON_TEXT = {
   disconnected: '连接断开',
 };
 
+// 对应 md3.css 的 chip 变体
 export const RESULT_CLASS = {
-  pass: 'pass',
-  fail: 'fail',
-  measure_failed: 'warn',
-  not_measured: 'muted',
+  pass: 'success',
+  fail: 'error',
+  measure_failed: 'warning',
+  not_measured: '',
 };
 
 let counter = 0;

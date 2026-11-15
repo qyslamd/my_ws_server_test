@@ -1,28 +1,40 @@
 import { api } from '../lib/api.js';
-import { el, createTable, toast } from '../lib/ui.js';
+import { el, createTable, iconEl, toast } from '../lib/ui.js';
 
 export function createToolsPage({ getState, refresh }) {
-  let active = false;
   let timer = 0;
 
-  const defaultOhms = el('input', { type: 'number', value: '100', style: { width: '110px' } });
-  const btnDefault = el('button', { class: 'secondary', text: '应用' });
-  const pInput = el('input', { type: 'number', value: '1', min: '1', max: '640', style: { width: '80px' } });
-  const nInput = el('input', { type: 'number', value: '2', min: '1', max: '640', style: { width: '80px' } });
-  const ohmsInput = el('input', { type: 'number', value: '100', style: { width: '100px' } });
+  const field = (label, control, width) =>
+    el('div', { class: 'field', style: width ? { width } : null },
+      el('label', { text: label }), control);
+
+  const defaultOhms = el('input', { type: 'number', value: '100' });
+  const btnDefault = el('button', { class: 'btn outlined', text: '应用' });
+  const pInput = el('input', { type: 'number', value: '1', min: '1', max: '640' });
+  const nInput = el('input', { type: 'number', value: '2', min: '1', max: '640' });
+  const ohmsInput = el('input', { type: 'number', value: '100' });
   const overBox = el('input', { type: 'checkbox' });
-  const btnSet = el('button', { class: 'secondary', text: '设置点值' });
-  const btnClear = el('button', { class: 'secondary', text: '清除覆盖' });
-  const simTag = el('span', { class: 'tag muted', text: '未启动' });
-  const infoBox = el('div', { class: 'row' });
+  const overField = el(
+    'label',
+    { class: 'row', style: { gap: '8px', cursor: 'pointer', height: '48px', alignItems: 'center' } },
+    overBox,
+    el('span', { class: 'small', text: '超量程' }),
+  );
+  const btnSet = el('button', { class: 'btn tonal', text: '设置点值' });
+  const btnClear = el('button', { class: 'btn text', text: '清除覆盖' });
+  const simChip = el('span', { class: 'chip' }, '未启动');
+  const infoBox = el('div', { class: 'kv' });
 
   const overridesTable = createTable({
     columns: [
-      { title: 'P', width: 80, render: (r) => r.p },
-      { title: 'N', width: 80, render: (r) => r.n },
+      { title: 'P', width: 72, num: true, render: (r) => r.p },
+      { title: 'N', width: 72, num: true, render: (r) => r.n },
       {
         title: '阻值 Ω',
-        render: (r) => (r.ohms === null || r.ohms === undefined ? '超量程' : Number(r.ohms).toFixed(3)),
+        num: true,
+        render: (r) => (r.ohms === null || r.ohms === undefined
+          ? el('span', { class: 'chip error', text: '超量程' })
+          : Number(r.ohms).toFixed(3)),
       },
     ],
     pageSize: 50,
@@ -31,8 +43,8 @@ export function createToolsPage({ getState, refresh }) {
     height: 180,
   });
 
-  const moduleLog = el('div', { class: 'log-view mono', text: '暂无日志' });
-  const serverLog = el('div', { class: 'log-view mono', text: '暂无日志' });
+  const moduleLog = el('div', { class: 'log-view', text: '暂无日志' });
+  const serverLog = el('div', { class: 'log-view', text: '暂无日志' });
 
   overBox.addEventListener('change', () => {
     ohmsInput.disabled = overBox.checked;
@@ -73,12 +85,19 @@ export function createToolsPage({ getState, refresh }) {
     }),
   );
 
+  const kvItem = (label, value) =>
+    el('div', { class: 'item' },
+      el('span', { class: 'k', text: label }),
+      el('span', { class: 'v', text: value }));
+
   function onState(state) {
     if (!state) return;
     const sim = state.sim || {};
     defaultOhms.value = String(sim.defaultOhms ?? 100);
-    simTag.className = `tag ${sim.running ? 'info' : 'muted'}`;
-    simTag.textContent = sim.running ? `运行中 ${sim.port || ''}` : '未启动';
+    simChip.className = `chip ${sim.running ? 'success' : ''}`;
+    simChip.innerHTML = sim.running
+      ? `<span class="dot"></span>运行中 ${sim.port || ''}`
+      : '未启动';
     const enabled = !!sim.running;
     btnDefault.disabled = !enabled;
     btnSet.disabled = !enabled;
@@ -86,19 +105,12 @@ export function createToolsPage({ getState, refresh }) {
     overridesTable.setRows(sim.overrides || []);
 
     infoBox.replaceChildren(
-      info('串口', state.storedPort || '-'),
-      info('仿真串口', state.simPort || '-'),
-      info('历史记录数', String(state.records ?? 0)),
-      info('设备', state.connected ? '已连接' : '未连接'),
-    );
-  }
-
-  function info(label, value) {
-    return el(
-      'span',
-      { style: { marginRight: '22px' } },
-      el('span', { class: 'field', text: `${label}：` }),
-      el('b', { text: value }),
+      kvItem('串口', state.storedPort || '-'),
+      kvItem('仿真串口', state.simPort || '-'),
+      kvItem('历史记录数', String(state.records ?? 0)),
+      kvItem('设备', state.connected ? '已连接' : '未连接'),
+      kvItem('默认阻值', `${sim.defaultOhms ?? 100} Ω`),
+      kvItem('点值覆盖', String((sim.overrides || []).length)),
     );
   }
 
@@ -118,11 +130,11 @@ export function createToolsPage({ getState, refresh }) {
   }
 
   function setActive(next) {
-    active = next;
     if (next) {
       void pollLogs();
+      window.clearInterval(timer);
       timer = window.setInterval(pollLogs, 2000);
-    } else if (timer) {
+    } else {
       window.clearInterval(timer);
       timer = 0;
     }
@@ -130,37 +142,70 @@ export function createToolsPage({ getState, refresh }) {
 
   const root = el(
     'div',
-    {},
+    { class: 'stack' },
     el(
       'div',
-      { class: 'panel' },
-      el('div', { class: 'panel-title' }, '仿真器', simTag),
+      { class: 'card' },
       el(
         'div',
-        { class: 'row', style: { marginBottom: '8px' } },
-        el('label', { class: 'field', text: '默认阻值 Ω' }),
-        defaultOhms,
-        btnDefault,
+        { class: 'card-header' },
+        el('div', {},
+          el('h3', { class: 'card-title' }, '仿真器'),
+          el('p', { class: 'card-subtitle' }, '默认阻值与点值覆盖，仅管理员可改')),
+        simChip,
       ),
       el(
         'div',
-        { class: 'row', style: { marginBottom: '8px' } },
-        el('label', { class: 'field', text: 'P' }),
-        pInput,
-        el('label', { class: 'field', text: 'N' }),
-        nInput,
-        el('label', { class: 'field', text: '阻值 Ω' }),
-        ohmsInput,
-        el('label', { class: 'field', text: '超量程' }),
-        overBox,
+        { class: 'row', style: { alignItems: 'flex-end', flexWrap: 'wrap' } },
+        field('默认阻值 Ω', defaultOhms, '140px'),
+        btnDefault,
+        el('span', { class: 'divider', style: { width: '1px', height: '40px', margin: '0 8px' } }),
+        field('P', pInput, '90px'),
+        field('N', nInput, '90px'),
+        field('阻值 Ω', ohmsInput, '120px'),
+        overField,
         btnSet,
         btnClear,
       ),
+      el('div', { class: 'divider' }),
       overridesTable.el,
     ),
-    el('div', { class: 'panel' }, el('div', { class: 'panel-title' }, '运行信息'), infoBox),
-    el('div', { class: 'panel' }, el('div', { class: 'panel-title' }, '模块日志'), moduleLog),
-    el('div', { class: 'panel' }, el('div', { class: 'panel-title' }, '底座日志'), serverLog),
+    el(
+      'div',
+      { class: 'card' },
+      el(
+        'div',
+        { class: 'card-header' },
+        el('div', {},
+          el('h3', { class: 'card-title' }, '运行信息'),
+          el('p', { class: 'card-subtitle' }, '当前串口、链路与存储概况')),
+      ),
+      infoBox,
+    ),
+    el(
+      'div',
+      { class: 'grid-1-1' },
+      el(
+        'div',
+        { class: 'card' },
+        el('div', { class: 'card-header' },
+          el('div', {},
+            el('h3', { class: 'card-title' },
+              el('span', { class: 'row', style: { gap: '8px' } }, iconEl('chip', 'sm'), '模块日志')),
+            el('p', { class: 'card-subtitle' }, '设备层收发与测量事件'))),
+        moduleLog,
+      ),
+      el(
+        'div',
+        { class: 'card' },
+        el('div', { class: 'card-header' },
+          el('div', {},
+            el('h3', { class: 'card-title' },
+              el('span', { class: 'row', style: { gap: '8px' } }, iconEl('activity', 'sm'), '底座日志')),
+            el('p', { class: 'card-subtitle' }, '会话、订阅与安全停机记录'))),
+        serverLog,
+      ),
+    ),
   );
 
   setActive(false);

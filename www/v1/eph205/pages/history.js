@@ -1,64 +1,85 @@
 import { api } from '../lib/api.js';
-import { el, clear, createTable, confirmDialog, fmtTime, openDrawer, toast } from '../lib/ui.js';
+import {
+  el,
+  createTable,
+  confirmDialog,
+  fmtTime,
+  icon,
+  openDrawer,
+  toast,
+} from '../lib/ui.js';
 import { RESULT_CLASS, RESULT_TEXT, REASON_TEXT, downloadText } from '../lib/model.js';
 
-export function createHistoryPage({ getState, getRole }) {
+export function createHistoryPage({ getRole }) {
   let rows = [];
   let total = 0;
   let page = 0;
   const pageSize = 20;
   let selected = [];
 
-  const modelInput = el('input', { type: 'text', style: { width: '140px' } });
-  const operatorInput = el('input', { type: 'text', style: { width: '110px' } });
+  const field = (label, control, width) =>
+    el('div', { class: 'field', style: width ? { width } : null },
+      el('label', { text: label }), control);
+
+  const modelInput = el('input', { type: 'text', placeholder: '模糊匹配' });
+  const operatorInput = el('input', { type: 'text', placeholder: '精确匹配' });
   const statusSelect = el(
     'select',
-    { style: { width: '110px' } },
+    {},
     el('option', { value: '', text: '全部' }),
     el('option', { value: 'completed', text: '已完成' }),
     el('option', { value: 'cancelled', text: '已取消' }),
     el('option', { value: 'aborted', text: '中断' }),
   );
-  const btnQuery = el('button', { text: '查询' });
-  const btnCompare = el('button', { class: 'secondary', text: '对比', disabled: true });
-  const btnExportMany = el('button', { class: 'secondary', text: '批量导出 CSV', disabled: true });
-  const selInfo = el('span', { class: 'field', text: '已选 0 条' });
-  const totalInfo = el('span', { class: 'field', text: '共 0 条' });
+  const btnQuery = el('button', { class: 'btn filled', html: `${icon('search', 'sm')}<span>查询</span>` });
+  const btnCompare = el('button', { class: 'btn tonal', text: '对比', disabled: true });
+  const btnExportMany = el('button', { class: 'btn outlined', text: '批量导出 CSV', disabled: true });
+  const selInfo = el('span', { class: 'chip' }, '已选 0 条');
+  const totalInfo = el('span', { class: 'chip' }, '共 0 条');
 
   const isAdmin = () => (getRole ? getRole() : '') === 'admin';
 
+  const statusChip = (status) => {
+    const tone = status === 'completed' ? 'success' : 'warning';
+    const text = status === 'completed' ? '已完成'
+      : status === 'cancelled' ? '已取消' : '中断';
+    return el('span', { class: `chip ${tone}` }, el('span', { class: 'dot' }), text);
+  };
+
   const columns = [
-    { title: 'ID', width: 60, render: (r) => r.id },
-    { title: '时间', width: 150, render: (r) => fmtTime(r.createdAt) },
+    { title: 'ID', width: 56, num: true, render: (r) => r.id },
+    { title: '时间', width: 156, render: (r) => fmtTime(r.createdAt) },
     { title: '型号', width: 150, render: (r) => r.product?.model || '-' },
     { title: '编号', width: 110, render: (r) => r.product?.code || '-' },
+    { title: '状态', width: 96, render: (r) => statusChip(r.status) },
     {
-      title: '状态',
-      width: 90,
-      render: (r) => el('span', { class: `tag ${r.status === 'completed' ? 'pass' : 'warn'}`, text: r.status }),
-    },
-    {
-      title: '总数/通过/失败',
-      width: 140,
+      title: '总数 / 通过 / 失败',
+      width: 150,
+      num: true,
       render: (r) => {
         const s = r.summary || {};
         return `${s.total ?? 0} / ${s.passed ?? 0} / ${s.failed ?? 0}`;
       },
     },
-    { title: '通过率', width: 90, render: (r) => `${Number(r.summary?.passRate ?? 0).toFixed(1)}%` },
+    {
+      title: '通过率',
+      width: 88,
+      num: true,
+      render: (r) => `${Number(r.summary?.passRate ?? 0).toFixed(1)}%`,
+    },
     { title: '操作员', width: 90, render: (r) => r.operator || '-' },
-    { title: '来源', width: 80, render: (r) => (r.deviceSource === 'simulation' ? '仿真' : '真机') },
+    { title: '来源', width: 72, render: (r) => (r.deviceSource === 'simulation' ? '仿真' : '真机') },
     {
       title: '操作',
       render: (r) => {
-        const btns = [
-          el('button', { class: 'link', text: '详情', onclick: () => void openDetail(r.id) }),
-          el('button', { class: 'link', text: '导出', onclick: () => void exportOne(r.id) }),
+        const actions = [
+          el('button', { class: 'btn text sm', text: '详情', onclick: () => void openDetail(r.id) }),
+          el('button', { class: 'btn text sm', text: '导出', onclick: () => void exportOne(r.id) }),
         ];
         if (isAdmin()) {
-          btns.push(
+          actions.push(
             el('button', {
-              class: 'link danger',
+              class: 'btn text sm danger',
               text: '删除',
               onclick: async () => {
                 if (!(await confirmDialog(`删除记录 #${r.id}？`, { danger: true }))) return;
@@ -73,7 +94,7 @@ export function createHistoryPage({ getState, getRole }) {
             }),
           );
         }
-        return el('span', {}, btns);
+        return el('span', { class: 'row', style: { gap: '2px' } }, actions);
       },
     },
   ];
@@ -92,10 +113,7 @@ export function createHistoryPage({ getState, getRole }) {
       btnExportMany.disabled = keys.length === 0;
     },
   });
-
   table.el.dataset.page = 'history';
-
-
 
   async function load(nextPage = page) {
     if (!api.wsOpen) return;
@@ -121,32 +139,41 @@ export function createHistoryPage({ getState, getRole }) {
 
   btnQuery.addEventListener('click', () => void load(0));
 
+  function itemColumns() {
+    return [
+      { title: '序号', width: 60, num: true, render: (r) => r.seq },
+      { title: 'P', width: 56, num: true, render: (r) => r.p },
+      { title: 'N', width: 56, num: true, render: (r) => r.n },
+      { title: '线制', width: 64, render: (r) => (r.wire === 0 ? '二线' : '四线') },
+      { title: '量程', width: 64, render: (r) => `R${r.range}` },
+      {
+        title: '测量值 Ω',
+        width: 110,
+        num: true,
+        render: (r) => (r.value === null || r.value === undefined ? '-' : Number(r.value).toFixed(3)),
+      },
+      {
+        title: '判定',
+        width: 96,
+        render: (r) => el('span', {
+          class: `chip ${RESULT_CLASS[r.result] || ''}`,
+          text: RESULT_TEXT[r.result] || r.result,
+        }),
+      },
+      { title: '原因', render: (r) => REASON_TEXT[r.reason] || r.reason || '' },
+    ];
+  }
+
   async function openDetail(id) {
     try {
       const record = await api.command('history_get', { id });
       const s = record.summary || {};
       const detailTable = createTable({
-        columns: [
-          { title: '序号', width: 60, render: (r) => r.seq },
-          { title: 'P', width: 60, render: (r) => r.p },
-          { title: 'N', width: 60, render: (r) => r.n },
-          { title: '线制', width: 60, render: (r) => (r.wire === 0 ? '二线' : '四线') },
-          { title: '量程', width: 60, render: (r) => `R${r.range}` },
-          {
-            title: '测量值 Ω',
-            width: 110,
-            render: (r) => (r.value === null || r.value === undefined ? '-' : Number(r.value).toFixed(3)),
-          },
-          {
-            title: '判定',
-            width: 90,
-            render: (r) => el('span', { class: `tag ${RESULT_CLASS[r.result] || ''}`, text: RESULT_TEXT[r.result] || r.result }),
-          },
-          { title: '原因', render: (r) => REASON_TEXT[r.reason] || r.reason || '' },
-        ],
+        columns: itemColumns(),
         pageSize: 100,
         rowKey: (r) => `${r.seq}-${r.p}-${r.n}`,
         height: 460,
+        rowClass: (r) => (r.result === 'fail' ? 'row-error' : ''),
       });
       detailTable.setRows(record.items || []);
 
@@ -155,21 +182,22 @@ export function createHistoryPage({ getState, getRole }) {
         {},
         el(
           'div',
-          { class: 'row', style: { marginBottom: '10px' } },
-          el('span', { class: 'tag', text: `总数 ${s.total ?? 0}` }),
-          el('span', { class: 'tag info', text: `通过 ${s.passed ?? 0}` }),
-          el('span', { class: 'tag fail', text: `失败 ${s.failed ?? 0}` }),
-          el('span', { class: 'tag warn', text: `测量失败 ${s.measureFailed ?? 0}` }),
-          el('span', { class: 'tag', text: `通过率 ${Number(s.passRate ?? 0).toFixed(1)}%` }),
+          { class: 'row', style: { marginBottom: '16px' } },
+          // 计数为 0 时不上状态色：一条记录里 0 个失败不该是红的
+          el('span', { class: 'chip' }, `总数 ${s.total ?? 0}`),
+          el('span', { class: `chip ${s.passed ? 'success' : ''}` }, `通过 ${s.passed ?? 0}`),
+          el('span', { class: `chip ${s.failed ? 'error' : ''}` }, `失败 ${s.failed ?? 0}`),
+          el('span', { class: `chip ${s.measureFailed ? 'warning' : ''}` },
+            `测量失败 ${s.measureFailed ?? 0}`),
+          el('span', { class: 'chip filled' }, `通过率 ${Number(s.passRate ?? 0).toFixed(1)}%`),
         ),
         detailTable.el,
       );
-      const drawer = openDrawer({
+      openDrawer({
         title: `记录 #${record.id} · ${record.product?.model || '未知型号'}`,
-        width: 860,
+        width: 880,
         content: body,
       });
-      drawer.body.style.paddingTop = '12px';
     } catch (err) {
       toast(`读取失败：${err.message}`, 'error');
     }
@@ -253,38 +281,53 @@ export function createHistoryPage({ getState, getRole }) {
       if (row.delta !== null) maxDelta = Math.max(maxDelta, Math.abs(row.delta));
     }
 
-    const meta = (record, title, cls) =>
+    const metaCard = (record, title, tone, lead) =>
       el(
         'div',
-        { style: { flex: '1', minWidth: '260px' } },
-        el('span', { class: `tag ${cls}`, text: title }),
+        { class: 'card filled' },
         el(
           'div',
-          { class: 'mono', style: { lineHeight: '1.8', marginTop: '4px' } },
-          `记录 #${record.id} · ${fmtTime(record.createdAt)}`,
-          el('br'),
-          `型号 ${record.product?.model || '-'} / 编号 ${record.product?.code || '-'}`,
-          el('br'),
-          `操作员 ${record.operator || '-'} · 来源 ${record.deviceSource === 'simulation' ? '仿真' : '真机'}`,
-          el('br'),
-          `通过率 ${Number(record.summary?.passRate ?? 0).toFixed(1)}%（${record.summary?.passed ?? 0}/${record.summary?.total ?? 0}）`,
+          { class: 'card-header' },
+          el(
+            'div',
+            {},
+            el('h3', { class: 'card-title' }, `${title} · #${record.id}`),
+            el('p', { class: 'card-subtitle' }, fmtTime(record.createdAt)),
+          ),
+          el('span', { class: `chip ${tone}`, html: `${icon(lead, 'sm')}<span>${title}</span>` }),
+        ),
+        el(
+          'div',
+          { class: 'kv' },
+          el('div', { class: 'item' }, el('span', { class: 'k' }, '型号'),
+            el('span', { class: 'v' }, record.product?.model || '-')),
+          el('div', { class: 'item' }, el('span', { class: 'k' }, '编号'),
+            el('span', { class: 'v' }, record.product?.code || '-')),
+          el('div', { class: 'item' }, el('span', { class: 'k' }, '操作员'),
+            el('span', { class: 'v' }, record.operator || '-')),
+          el('div', { class: 'item' }, el('span', { class: 'k' }, '来源'),
+            el('span', { class: 'v' }, record.deviceSource === 'simulation' ? '仿真' : '真机')),
+          el('div', { class: 'item' }, el('span', { class: 'k' }, '通过率'),
+            el('span', { class: 'v mono' },
+              `${Number(record.summary?.passRate ?? 0).toFixed(1)}%（${record.summary?.passed ?? 0}/${record.summary?.total ?? 0}）`)),
         ),
       );
 
     const compareTable = createTable({
       columns: [
-        { title: 'P', width: 60, render: (r) => r.p },
-        { title: 'N', width: 60, render: (r) => r.n },
-        { title: '基准值 Ω', width: 100, render: (r) => (r.baseValue === null ? '-' : r.baseValue.toFixed(3)) },
-        { title: '对比值 Ω', width: 100, render: (r) => (r.otherValue === null ? '-' : r.otherValue.toFixed(3)) },
+        { title: 'P', width: 56, num: true, render: (r) => r.p },
+        { title: 'N', width: 56, num: true, render: (r) => r.n },
+        { title: '基准值 Ω', width: 100, num: true, render: (r) => (r.baseValue === null ? '-' : r.baseValue.toFixed(3)) },
+        { title: '对比值 Ω', width: 100, num: true, render: (r) => (r.otherValue === null ? '-' : r.otherValue.toFixed(3)) },
         {
           title: '差值 Ω',
           width: 100,
+          num: true,
           render: (r) =>
             r.delta === null
               ? '-'
               : el('span', {
-                  style: { color: Math.abs(r.delta) > 0.05 ? '#b45309' : '' },
+                  class: Math.abs(r.delta) > 0.05 ? 'delta-warn' : null,
                   text: `${r.delta > 0 ? '+' : ''}${r.delta.toFixed(3)}`,
                 }),
         },
@@ -293,7 +336,7 @@ export function createHistoryPage({ getState, getRole }) {
           width: 100,
           render: (r) =>
             r.baseResult
-              ? el('span', { class: `tag ${RESULT_CLASS[r.baseResult] || ''}`, text: RESULT_TEXT[r.baseResult] || r.baseResult })
+              ? el('span', { class: `chip ${RESULT_CLASS[r.baseResult] || ''}`, text: RESULT_TEXT[r.baseResult] || r.baseResult })
               : '-',
         },
         {
@@ -301,90 +344,103 @@ export function createHistoryPage({ getState, getRole }) {
           width: 100,
           render: (r) =>
             r.otherResult
-              ? el('span', { class: `tag ${RESULT_CLASS[r.otherResult] || ''}`, text: RESULT_TEXT[r.otherResult] || r.otherResult })
+              ? el('span', { class: `chip ${RESULT_CLASS[r.otherResult] || ''}`, text: RESULT_TEXT[r.otherResult] || r.otherResult })
               : '-',
         },
         {
           title: '变化',
           width: 110,
           render: (r) => {
-            if (r.onlyBase) return el('span', { class: 'tag', text: '仅基准有' });
-            if (r.onlyOther) return el('span', { class: 'tag info', text: '仅对比有' });
-            if (r.resultChanged) return el('span', { class: 'tag fail', text: '判定变化' });
-            return el('span', { class: 'field', text: '不变' });
+            if (r.onlyBase) return el('span', { class: 'chip', text: '仅基准有' });
+            if (r.onlyOther) return el('span', { class: 'chip filled', text: '仅对比有' });
+            if (r.resultChanged) return el('span', { class: 'chip error', text: '判定变化' });
+            return el('span', { class: 'muted small', text: '不变' });
           },
         },
       ],
       pageSize: 100,
       rowKey: (r) => r.key,
-      rowClass: (r) => (r.resultChanged ? 'changed' : r.onlyBase || r.onlyOther ? 'partial' : ''),
-      height: 520,
+      rowClass: (r) => (r.resultChanged ? 'row-error' : r.onlyBase || r.onlyOther ? 'row-partial' : ''),
+      height: 480,
     });
     compareTable.setRows(compareRows);
 
     const body = el(
       'div',
-      {},
-      el('div', { style: { display: 'flex', gap: '24px', marginBottom: '12px' } }, meta(base, '基准（较早）', ''), meta(other, '对比（较晚）', 'info')),
+      { class: 'stack' },
+      el('div', { class: 'grid-2' },
+        metaCard(base, '基准（较早）', '', 'archive'),
+        metaCard(other, '对比（较晚）', 'filled', 'archive')),
       el(
         'div',
-        { class: 'row', style: { marginBottom: '10px' } },
-        el('span', { class: 'tag', text: `共同点 ${common}` }),
-        el('span', { class: `tag ${onlyBase ? 'warn' : ''}`, text: `仅基准 ${onlyBase}` }),
-        el('span', { class: `tag ${onlyOther ? 'info' : ''}`, text: `仅对比 ${onlyOther}` }),
-        el('span', { class: `tag ${changed ? 'fail' : ''}`, text: `判定变化 ${changed}` }),
-        el('span', { class: 'tag', text: `最大差值 ${maxDelta.toFixed(3)} Ω` }),
+        { class: 'row' },
+        el('span', { class: 'chip' }, `共同点 ${common}`),
+        el('span', { class: `chip ${onlyBase ? 'warning' : ''}` }, `仅基准 ${onlyBase}`),
+        el('span', { class: `chip ${onlyOther ? 'filled' : ''}` }, `仅对比 ${onlyOther}`),
+        el('span', { class: `chip ${changed ? 'error' : ''}` }, `判定变化 ${changed}`),
+        el('span', { class: 'chip' }, `最大差值 ${maxDelta.toFixed(3)} Ω`),
       ),
       changed > 0
-        ? el('div', {
-            class: 'tag warn',
-            style: { display: 'block', marginBottom: '10px', padding: '6px 10px' },
-            text: `有 ${changed} 个点的判定和基准不同，已在表格里标红。`,
-          })
+        ? el('div', { class: 'banner warning' },
+            el('span', { html: icon('alert', 'sm') }),
+            el('span', { text: `有 ${changed} 个点的判定和基准不同，已在表格里标红。` }))
         : null,
       compareTable.el,
-      el('div', {
-        class: 'field',
-        style: { marginTop: '8px' },
-        text: '对齐键是 (P,N)；差值 = 对比值 − 基准值；超过 ±0.05 Ω 的差值标橙。',
-      }),
+      el('p', { class: 'muted small', style: { margin: '4px 0 0' } },
+        '对齐键是 (P,N)；差值 = 对比值 − 基准值；超过 ±0.05 Ω 的差值标橙。'),
     );
 
-    openDrawer({ title: '测量对比', width: 980, content: body });
+    openDrawer({ title: '测量对比', width: 1000, content: body });
   }
 
   function setActive(active) {
     if (active) void load(0);
   }
 
-  return { el: buildRoot(), setActive, onRoleChange: () => void load(0) };
-
-  function buildRoot() {
-    return el(
+  const root = el(
+    'div',
+    { class: 'stack' },
+    el(
       'div',
-      {},
+      { class: 'card' },
       el(
         'div',
-        { class: 'panel' },
-        el('div', { class: 'panel-title' }, '历史记录'),
-        el(
-          'div',
-          { class: 'row', style: { marginBottom: '8px' } },
-          el('label', { class: 'field', text: '型号' }),
-          modelInput,
-          el('label', { class: 'field', text: '操作员' }),
-          operatorInput,
-          el('label', { class: 'field', text: '状态' }),
-          statusSelect,
-          btnQuery,
-          el('span', { class: 'spacer' }),
-          selInfo,
-          btnCompare,
-          btnExportMany,
-          totalInfo,
-        ),
-        table.el,
+        { class: 'card-header' },
+        el('div', {},
+          el('h3', { class: 'card-title' }, '筛选'),
+          el('p', { class: 'card-subtitle' }, '按型号、操作员与状态过滤历史记录')),
+        el('div', { class: 'row' }, selInfo, totalInfo),
       ),
-    );
-  }
+      el(
+        'div',
+        { class: 'row', style: { flexWrap: 'wrap', alignItems: 'flex-end' } },
+        field('型号', modelInput, '170px'),
+        field('操作员', operatorInput, '150px'),
+        field('状态', statusSelect, '130px'),
+        btnQuery,
+      ),
+      el('div', { class: 'divider' }),
+      el(
+        'div',
+        { class: 'row' },
+        btnCompare,
+        btnExportMany,
+        el('span', { class: 'muted small' }, '勾选两条可对比，勾选任意条可批量导出'),
+      ),
+    ),
+    el(
+      'div',
+      { class: 'card' },
+      el(
+        'div',
+        { class: 'card-header' },
+        el('div', {},
+          el('h3', { class: 'card-title' }, '历史记录'),
+          el('p', { class: 'card-subtitle' }, '按时间倒序，单页 20 条')),
+      ),
+      table.el,
+    ),
+  );
+
+  return { el: root, setActive, onRoleChange: () => void load(0) };
 }

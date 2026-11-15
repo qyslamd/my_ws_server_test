@@ -15,10 +15,13 @@ const HIGHLIGHT = new THREE.Color(0x2f6bff);
 export function createViewer3d() {
   const base = new URL('../help3d/', import.meta.url).href;
   const host = el('div', { class: 'viewer-host' });
-  const statusTag = el('span', { class: 'tag muted', text: '加载中…' });
-  const pickedTag = el('span', { class: 'tag info', style: { display: 'none' } });
-  const partList = el('div', { class: 'row', style: { marginTop: '8px' } });
-  const btnReset = el('button', { class: 'secondary', text: '复位视角' });
+  const statusTag = el('span', { class: 'chip', text: '加载中…' });
+  const pickedTag = el('span', { class: 'chip filled', style: { display: 'none' } });
+  const partList = el('div', {
+    class: 'row',
+    style: { marginTop: '12px', flexWrap: 'wrap', gap: '8px' },
+  });
+  const btnReset = el('button', { class: 'btn outlined sm', text: '复位视角' });
 
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -48,6 +51,7 @@ export function createViewer3d() {
 
   let raf = 0;
   let disposed = false;
+  let active = true;
   let highlighted = [];
   const clock = new THREE.Clock();
 
@@ -62,11 +66,32 @@ export function createViewer3d() {
   observer.observe(host);
 
   function animate() {
+    if (!active) {
+      raf = 0;
+      return;
+    }
     raf = requestAnimationFrame(animate);
     const t = clock.getElapsedTime();
     key.intensity = 1.9 + Math.sin(t * 0.8) * 0.15;
     controls.update();
     renderer.render(scene, camera);
+  }
+
+  /**
+   * 暂停/恢复渲染。
+   * 页面切走以后如果继续跑 rAF，会一直占着 GPU 和主线程（60fps 空转），
+   * 而且 CEF 的合成器一直被唤醒，连截图都会卡住。
+   */
+  function setActive(next) {
+    if (disposed || next === active) return;
+    active = next;
+    if (active) {
+      animate();
+    } else {
+      cancelAnimationFrame(raf);
+      raf = 0;
+      renderer.render(scene, camera); // 留一帧，切回来时不是空白
+    }
   }
 
   function frameScene() {
@@ -202,15 +227,15 @@ export function createViewer3d() {
         root.add(instance);
       }
       frameScene();
-      statusTag.className = 'tag';
+      statusTag.className = 'chip success';
       statusTag.textContent = `已加载 ${parts.length} 个部件`;
       clear(partList);
       for (const part of parts) {
-        partList.appendChild(el('span', { class: 'tag', text: part.label }));
+        partList.appendChild(el('span', { class: 'chip', text: part.label }));
       }
       resize();
     } catch (err) {
-      statusTag.className = 'tag fail';
+      statusTag.className = 'chip error';
       statusTag.textContent = '三维资源加载失败：' + err.message;
     }
   })();
@@ -225,7 +250,7 @@ export function createViewer3d() {
       'div',
       { class: 'row', style: { marginBottom: '8px' } },
       btnReset,
-      el('span', { class: 'field', text: '左键旋转 · 滚轮缩放 · 右键平移 · 点击部件查看名称' }),
+      el('span', { class: 'small muted', text: '左键旋转 · 滚轮缩放 · 右键平移 · 点击部件查看名称' }),
       el('span', { class: 'spacer' }),
       pickedTag,
       statusTag,
@@ -236,6 +261,7 @@ export function createViewer3d() {
 
   return {
     el: elRoot,
+    setActive,
     dispose() {
       disposed = true;
       cancelAnimationFrame(raf);

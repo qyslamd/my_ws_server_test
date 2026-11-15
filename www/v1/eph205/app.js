@@ -1,5 +1,5 @@
 import { api } from './lib/api.js';
-import { el, clear, toast } from './lib/ui.js';
+import { el, clear, fmtTime, icon, toast } from './lib/ui.js';
 import { createLoginPage } from './pages/login.js';
 import { createMeasurePage } from './pages/measure.js';
 import { createDebugPage } from './pages/debug.js';
@@ -8,23 +8,19 @@ import { createToolsPage } from './pages/tools.js';
 import { createHelpPage } from './pages/help.js';
 
 const PAGES = [
-  { key: 'measure', label: '测试' },
-  { key: 'debug', label: '调试', adminOnly: true },
-  { key: 'history', label: '历史' },
-  { key: 'tools', label: '工具' },
-  { key: 'help', label: '帮助' },
+  { key: 'measure', label: '测试', icon: 'activity', title: '测试',
+    sub: '连接设备、执行测量、查看结果' },
+  { key: 'debug', label: '调试', icon: 'chip', adminOnly: true, title: '调试',
+    sub: '单点测量、参数读写、原始命令与帧日志' },
+  { key: 'history', label: '历史', icon: 'archive', title: '历史',
+    sub: '历次测量记录、逐项明细与对比' },
+  { key: 'tools', label: '工具', icon: 'settings', title: '工具',
+    sub: '仿真器点值、运行信息与日志' },
+  { key: 'help', label: '帮助', icon: 'doc', title: '帮助',
+    sub: '使用说明、协议速查与三维连接图' },
 ];
 
 const root = document.getElementById('root');
-
-// 内嵌浏览器（CEF/旧 Chromium）里排障用：把未捕获错误留在窗口上
-window.__errors = [];
-window.addEventListener('error', (e) => {
-  if (window.__errors.length < 50) window.__errors.push(String(e.message || e.error));
-});
-window.addEventListener('unhandledrejection', (e) => {
-  if (window.__errors.length < 50) window.__errors.push('unhandled: ' + String(e.reason));
-});
 
 const app = {
   moduleState: null,
@@ -34,9 +30,32 @@ const app = {
   progress: null,
   pages: new Map(),
   current: 'measure',
-  shell: null,
   pollTimer: 0,
+  clockTimer: 0,
 };
+
+// ---------------------------------------------------------------- 主题
+
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  try {
+    localStorage.setItem('eph205.theme', theme);
+  } catch {
+    /* 隐私模式下忽略 */
+  }
+}
+
+function currentTheme() {
+  return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
+}
+
+applyTheme((() => {
+  try {
+    return localStorage.getItem('eph205.theme') || 'light';
+  } catch {
+    return 'light';
+  }
+})());
 
 // ---------------------------------------------------------------- 事件分发
 
@@ -56,7 +75,7 @@ api.onStream((frame, items) => {
 
 api.onStatus((status) => {
   app.wsStatus = status;
-  renderTitlebar();
+  renderTopbar();
   if (status === 'closed') {
     toast('与服务端的连接已断开', 'error');
   }
@@ -69,58 +88,79 @@ async function refreshState() {
   try {
     const state = await api.getState();
     app.moduleState = state;
-    renderTitlebar();
+    renderTopbar();
     for (const page of app.pages.values()) page.onState?.(state);
   } catch {
-    /* 会话断开时忽略，状态条会提示 */
+    /* 会话断开时忽略，顶栏会提示 */
   }
 }
 
-// ---------------------------------------------------------------- 标题栏
+// ---------------------------------------------------------------- 顶栏
 
-const statusDot = el('span', { class: 'status-dot' });
-const statusText = el('span', { class: 'meta', text: '连接中…' });
-const deviceTag = el('span', { class: 'tag muted', text: '未连接' });
-const firmwareText = el('span', { class: 'meta' });
-const userTag = el('span', { class: 'tag info' });
-const btnLogout = el('button', { class: 'secondary', text: '退出' });
-const titlebar = el('div', { class: 'titlebar' });
+const topTitle = el('div', { class: 'page-title' });
+const topSub = el('div', { class: 'page-sub' });
+const wsChip = el('span', { class: 'chip' });
+const deviceChip = el('span', { class: 'chip' });
+const simChip = el('span', { class: 'chip' });
+const clockEl = el('span', { class: 'clock' });
+const themeBtn = el('button', { class: 'icon-btn', title: '切换深浅色' });
+const avatar = el('div', { class: 'avatar' });
+const logoutBtn = el('button', { class: 'btn text sm', text: '退出' });
+const topbar = el('header', { class: 'topbar' });
 
-function renderTitlebar() {
+function renderTopbar() {
   if (!app.user) return;
   const state = app.moduleState;
   const connected = !!state?.connected;
   const simRunning = !!state?.sim?.running;
-  statusDot.className = `status-dot ${app.wsStatus === 'open' ? 'on' : 'off'}`;
-  statusText.textContent = app.wsStatus === 'open' ? '通讯正常' : '已断开';
-  deviceTag.className = `tag ${connected ? 'pass' : 'muted'}`;
-  deviceTag.textContent = connected ? `已连接 ${state.port || ''}` : '未连接';
-  firmwareText.textContent = state?.device
-    ? `固件 ${state.device.firmware} · P${state.device.pCount}/N${state.device.nCount} · MUX ${state.device.muxBoards}${
-        simRunning ? ' · 仿真中' : ''
-      }`
-    : '';
-  userTag.textContent = `${app.user} · ${app.role === 'admin' ? '管理员' : '操作员'}`;
+  const page = PAGES.find((p) => p.key === app.current) || PAGES[0];
+  topTitle.textContent = page.title;
+  topSub.textContent = page.sub;
+  wsChip.className = `chip ${app.wsStatus === 'open' ? 'success' : 'error'}`;
+  wsChip.innerHTML = `<span class="dot"></span>${app.wsStatus === 'open' ? '通讯正常' : '已断开'}`;
+  deviceChip.className = `chip ${connected ? 'success' : ''}`;
+  deviceChip.textContent = connected ? `已连接 ${state.port || ''}` : '未连接';
+  simChip.className = `chip ${simRunning ? 'filled' : ''}`;
+  simChip.textContent = simRunning ? `仿真 ${state?.sim?.port || ''}` : '仿真未启动';
+  avatar.textContent = (app.user || '?').slice(0, 1).toUpperCase();
+  avatar.title = `${app.user} · ${app.role === 'admin' ? '管理员' : '操作员'}`;
+  themeBtn.innerHTML = icon(currentTheme() === 'dark' ? 'sun' : 'moon', 'sm');
+  logoutBtn.className = 'btn text sm';
 }
 
-function buildTitlebar() {
-  clear(titlebar);
-  titlebar.append(
-    el('span', { class: 'app-name', text: 'EP-H205 综合测试系统' }),
-    el('span', { style: { display: 'inline-flex', alignItems: 'center' } }, statusDot, statusText),
-    deviceTag,
-    firmwareText,
+function tickClock() {
+  clockEl.textContent = fmtTime(Date.now()).slice(11);
+}
+
+themeBtn.addEventListener('click', () => {
+  applyTheme(currentTheme() === 'dark' ? 'light' : 'dark');
+  renderTopbar();
+});
+
+function buildTopbar() {
+  clear(topbar);
+  topbar.append(
+    el('div', {}, topTitle, topSub),
     el('span', { class: 'spacer' }),
-    userTag,
-    btnLogout,
+    wsChip,
+    deviceChip,
+    simChip,
+    el('span', { style: { width: '8px' } }),
+    clockEl,
+    themeBtn,
+    avatar,
+    logoutBtn,
   );
-  renderTitlebar();
+  renderTopbar();
+  tickClock();
+  window.clearInterval(app.clockTimer);
+  app.clockTimer = window.setInterval(tickClock, 1000);
 }
 
 // ---------------------------------------------------------------- 页面
 
-const tabBar = el('div', { class: 'tabs' });
-const main = el('div', { class: 'main' });
+const rail = el('nav', { class: 'rail' });
+const content = el('main', { class: 'content' });
 
 function visiblePages() {
   return PAGES.filter((p) => !p.adminOnly || app.role === 'admin');
@@ -128,14 +168,19 @@ function visiblePages() {
 
 function switchPage(key) {
   if (!app.pages.has(key)) key = 'measure';
+  const previous = app.current;
   app.current = key;
   for (const [k, page] of app.pages) {
-    page.el.style.display = k === key ? '' : 'none';
-    page.setActive?.(k === key);
+    const active = k === key;
+    page.el.classList.toggle('active', active);
+    // 页面自己管着轮询/懒加载（历史首次查询、工具页日志轮询），切走要停。
+    if (active) page.setActive?.(true);
+    else if (k === previous) page.setActive?.(false);
   }
-  for (const btn of tabBar.children) {
-    btn.classList.toggle('active', btn.dataset.key === key);
+  for (const btn of rail.children) {
+    if (btn.dataset) btn.classList.toggle('active', btn.dataset.key === key);
   }
+  renderTopbar();
 }
 
 function createPages() {
@@ -151,21 +196,26 @@ function createPages() {
   app.pages.set('tools', createToolsPage(ctx));
   app.pages.set('help', createHelpPage(ctx));
 
-  clear(main);
+  clear(content);
   for (const [key, page] of app.pages) {
-    page.el.style.display = key === 'measure' ? '' : 'none';
-    main.appendChild(page.el);
+    page.el.classList.add('page');
+    page.el.classList.toggle('active', key === 'measure');
+    content.appendChild(page.el);
   }
 }
 
-function buildTabs() {
-  clear(tabBar);
-  for (const page of visiblePages()) {
-    const btn = el('button', { text: page.label });
-    btn.dataset.key = page.key;
-    btn.addEventListener('click', () => switchPage(page.key));
-    tabBar.appendChild(btn);
-  }
+function buildRail() {
+  clear(rail);
+  rail.append(
+    el('div', { class: 'rail-logo', html: icon('box', 'sm') }),
+    ...visiblePages().map((page) => {
+      const btn = el('button', { class: 'rail-item', html: `${icon(page.icon)}<span>${page.label}</span>` });
+      btn.dataset.key = page.key;
+      btn.addEventListener('click', () => switchPage(page.key));
+      return btn;
+    }),
+    el('div', { class: 'rail-spacer' }),
+  );
 }
 
 // ---------------------------------------------------------------- 登录 / 退出
@@ -177,15 +227,16 @@ async function logout() {
 }
 
 function teardownShell() {
-  if (app.pollTimer) window.clearInterval(app.pollTimer);
+  window.clearInterval(app.pollTimer);
+  window.clearInterval(app.clockTimer);
   app.pollTimer = 0;
+  app.clockTimer = 0;
   app.pages.clear();
   app.moduleState = null;
   app.progress = null;
   app.user = null;
   app.role = '';
   clear(root);
-  app.shell = null;
 }
 
 function renderLogin() {
@@ -205,38 +256,33 @@ function renderLogin() {
 
 function renderShell() {
   clear(root);
-  buildTitlebar();
-  buildTabs();
-  const shell = el('div', { class: 'app' }, titlebar, tabBar, main);
+  buildTopbar();
+  buildRail();
+  const shell = el('div', { class: 'app' }, rail, el('div', { class: 'main' }, topbar, content));
   root.appendChild(shell);
-  app.shell = shell;
   createPages();
   switchPage('measure');
-  renderTitlebar();
+  renderTopbar();
 
   app.pollTimer = window.setInterval(() => void refreshState(), 2000);
   void api.subscribe(1).catch(() => undefined);
   void refreshState();
 }
 
-btnLogout.addEventListener('click', () => void logout());
+logoutBtn.addEventListener('click', () => void logout());
 
 // ---------------------------------------------------------------- 启动
 
 async function boot() {
   clear(root);
-  root.appendChild(
-    el('div', { class: 'login-page' }, el('div', { class: 'field', text: '正在连接服务端…' })),
-  );
+  root.appendChild(el('div', { class: 'login-page' }, el('div', { class: 'muted' }, '正在连接服务端…')));
   try {
     await api.connect();
     app.wsStatus = 'open';
   } catch {
     app.wsStatus = 'error';
     clear(root);
-    root.appendChild(
-      el('div', { class: 'login-page' }, el('div', { class: 'field', text: '无法连接服务端' })),
-    );
+    root.appendChild(el('div', { class: 'login-page' }, el('div', { class: 'muted' }, '无法连接服务端')));
     return;
   }
   try {

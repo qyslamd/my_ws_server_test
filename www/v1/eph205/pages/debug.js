@@ -1,5 +1,5 @@
 import { api } from '../lib/api.js';
-import { el, clear, toast } from '../lib/ui.js';
+import { el, clear, icon, toast } from '../lib/ui.js';
 
 const PARAM_TYPES = [
   { value: 1, label: '1 线制' },
@@ -21,45 +21,51 @@ const RAW_COMMANDS = [
 ];
 
 export function createDebugPage({ getState, refresh }) {
-  let active = false;
   let timer = 0;
 
-  const pInput = el('input', { type: 'number', value: '1', min: '1', max: '640', style: { width: '80px' } });
-  const nInput = el('input', { type: 'number', value: '2', min: '1', max: '640', style: { width: '80px' } });
-  const btnMeasure = el('button', { text: '测量' });
-  const btnReadParams = el('button', { class: 'secondary', text: '读取参数' });
-  const btnReset = el('button', { class: 'secondary', text: '复位设备' });
+  const field = (label, control, width) =>
+    el('div', { class: 'field', style: width ? { width } : null }, el('label', { text: label }), control);
 
-  const readingBox = el('div', { class: 'row', style: { marginTop: '8px' } });
+  const pInput = el('input', { type: 'number', value: '1', min: '1', max: '640' });
+  const nInput = el('input', { type: 'number', value: '2', min: '1', max: '640' });
+  const btnMeasure = el('button', { class: 'btn filled', text: '测量' });
+  const btnReadParams = el('button', { class: 'btn outlined', text: '读取参数' });
+  const btnReset = el('button', { class: 'btn outlined', text: '复位设备' });
+  const readingBox = el('div', { class: 'kv', style: { marginTop: '12px' } });
 
-  const paramType = el('select', { style: { width: '130px' } });
+  const paramType = el('select', {});
   PARAM_TYPES.forEach((t) => paramType.appendChild(el('option', { value: String(t.value), text: t.label })));
-  const paramValue = el('input', { type: 'number', value: '0', min: '0', max: '255', style: { width: '80px' } });
-  const btnSetParam = el('button', { class: 'secondary', text: '下发' });
+  const paramValue = el('input', { type: 'number', value: '0', min: '0', max: '255' });
+  const btnSetParam = el('button', { class: 'btn tonal', text: '下发' });
 
-  const modeSelect = el('select', { style: { width: '84px' } }, el('option', { value: '0', text: '恒流' }), el('option', { value: '1', text: '恒压' }));
-  const sourceSelect = el(
-    'select',
-    { style: { width: '110px' } },
+  const modeSelect = el('select', {}, el('option', { value: '0', text: '恒流' }), el('option', { value: '1', text: '恒压' }));
+  const sourceSelect = el('select', {},
     el('option', { value: '1', text: '分离源' }),
     el('option', { value: '2', text: 'Howland' }),
-    el('option', { value: '3', text: 'AD7124' }),
-  );
-  const btnSetMode = el('button', { class: 'secondary', text: '下发模式' });
-  const paramsBox = el('div', { class: 'row', style: { marginTop: '8px' } });
+    el('option', { value: '3', text: 'AD7124' }));
+  const btnSetMode = el('button', { class: 'btn tonal', text: '下发模式' });
+  const paramsBox = el('div', { class: 'kv', style: { marginTop: '12px' } });
 
-  const rawCmd = el('select', { style: { width: '160px' } });
+  const rawCmd = el('select', {});
   RAW_COMMANDS.forEach((c) => rawCmd.appendChild(el('option', { value: String(c.value), text: c.label })));
-  const rawData = el('input', { type: 'text', placeholder: 'DATA（十六进制，可空）', style: { width: '220px' } });
-  const btnRaw = el('button', { class: 'secondary', text: '发送' });
-  const rawOut = el('div', { class: 'mono', style: { marginTop: '8px', lineHeight: '1.8' } });
+  const rawData = el('input', { type: 'text', placeholder: '如 01 00 02 00' });
+  const btnRaw = el('button', { class: 'btn tonal', text: '发送' });
+  const rawOut = el('div', {
+    class: 'log-view',
+    style: { marginTop: '12px', height: '80px' },
+    text: '发送后这里显示应答',
+  });
 
-  const checkP = el('input', { type: 'number', value: '1', min: '1', max: '640', style: { width: '80px' } });
-  const checkN = el('input', { type: 'number', value: '2', min: '1', max: '640', style: { width: '80px' } });
-  const btnCheck = el('button', { class: 'secondary', text: '点检' });
-  const checkOut = el('div', { class: 'mono', style: { marginTop: '8px', lineHeight: '1.8' } });
+  const checkP = el('input', { type: 'number', value: '1', min: '1', max: '640' });
+  const checkN = el('input', { type: 'number', value: '2', min: '1', max: '640' });
+  const btnCheck = el('button', { class: 'btn outlined', text: '点检' });
+  const checkOut = el('div', {
+    class: 'log-view',
+    style: { marginTop: '12px', height: '72px' },
+    text: '点「点检」后这里显示应答',
+  });
 
-  const frameLog = el('div', { class: 'log-view mono', text: '连接并执行命令后，这里显示收发帧' });
+  const frameLog = el('div', { class: 'log-view', text: '连接并执行命令后，这里显示收发帧' });
 
   function busy(on) {
     for (const b of [btnMeasure, btnReadParams, btnReset, btnSetParam, btnSetMode, btnRaw, btnCheck]) {
@@ -79,6 +85,12 @@ export function createDebugPage({ getState, refresh }) {
     }
   }
 
+  function info(label, value) {
+    return el('span', { class: 'item' },
+      el('span', { class: 'k', text: label }),
+      el('span', { class: 'v', text: value }));
+  }
+
   btnMeasure.addEventListener('click', () =>
     run(async () => {
       const out = await api.command('measure', { p: Number(pInput.value), n: Number(nInput.value) });
@@ -89,8 +101,7 @@ export function createDebugPage({ getState, refresh }) {
         info('原始 ADC', String(out.rawAdc)),
         info('差分', `${out.differentialUv} µV`),
       );
-    }),
-  );
+    }));
 
   btnReadParams.addEventListener('click', () =>
     run(async () => {
@@ -106,67 +117,43 @@ export function createDebugPage({ getState, refresh }) {
       );
       modeSelect.value = String(out.mode ?? 0);
       sourceSelect.value = String(out.source ?? 2);
-    }),
-  );
+    }));
 
   btnReset.addEventListener('click', () =>
     run(async () => {
       await api.command('reset');
       toast('设备已复位', 'success');
-    }),
-  );
+    }));
 
   btnSetParam.addEventListener('click', () =>
     run(async () => {
       await api.command('set_param', { type: Number(paramType.value), value: Number(paramValue.value) });
       toast('参数已下发', 'success');
-    }),
-  );
+    }));
 
   btnSetMode.addEventListener('click', () =>
     run(async () => {
       await api.command('set_mode', { mode: Number(modeSelect.value), source: Number(sourceSelect.value) });
       toast('模式已下发', 'success');
-    }),
-  );
+    }));
 
   btnRaw.addEventListener('click', () =>
     run(async () => {
       const out = await api.command('raw', { cmd: Number(rawCmd.value), data: rawData.value });
-      clear(rawOut);
-      rawOut.append(
-        el('div', {
-          text: `应答 ${out.cmdText}（0x${Number(out.cmd).toString(16).padStart(2, '0').toUpperCase()}）· ${out.len} 字节${
-            out.statusText ? ` · 状态 ${out.statusText}` : ''
-          }`,
-        }),
-        el('div', { style: { color: '#344054' }, text: out.dataHex || '（空）' }),
-      );
+      rawOut.textContent =
+        `应答 ${out.cmdText}（0x${Number(out.cmd).toString(16).padStart(2, '0').toUpperCase()}）` +
+        ` · ${out.len} 字节${out.statusText ? ` · 状态 ${out.statusText}` : ''}\n` +
+        (out.dataHex || '（空）');
       toast(`已收到 ${out.cmdText}`, 'success');
-    }),
-  );
+    }));
 
   btnCheck.addEventListener('click', () =>
     run(async () => {
       const out = await api.command('check_point', { p: Number(checkP.value), n: Number(checkN.value) });
-      clear(checkOut);
-      checkOut.append(
-        el('div', {
-          text: `应答 ${out.cmdText} · ${out.len} 字节${out.statusText ? ` · 状态 ${out.statusText}` : ''}`,
-        }),
-        el('div', { style: { color: '#344054' }, text: out.dataHex || '（空）' }),
-      );
-    }),
-  );
-
-  function info(label, value) {
-    return el(
-      'span',
-      { style: { marginRight: '18px' } },
-      el('span', { class: 'field', text: `${label}：` }),
-      el('b', { text: value }),
-    );
-  }
+      checkOut.textContent =
+        `应答 ${out.cmdText} · ${out.len} 字节${out.statusText ? ` · 状态 ${out.statusText}` : ''}\n` +
+        (out.dataHex || '（空）');
+    }));
 
   async function pollFrames() {
     if (!api.wsOpen || !getState()?.connected) return;
@@ -187,11 +174,11 @@ export function createDebugPage({ getState, refresh }) {
   }
 
   function setActive(next) {
-    active = next;
     if (next) {
       busy(false);
+      window.clearInterval(timer);
       timer = window.setInterval(pollFrames, 1500);
-    } else if (timer) {
+    } else {
       window.clearInterval(timer);
       timer = 0;
     }
@@ -206,66 +193,43 @@ export function createDebugPage({ getState, refresh }) {
 
   const root = el(
     'div',
-    {},
-    el(
-      'div',
-      { class: 'panel' },
-      el('div', { class: 'panel-title' }, '单点测量'),
-      el(
-        'div',
-        { class: 'row' },
-        el('label', { class: 'field', text: 'P' }),
-        pInput,
-        el('label', { class: 'field', text: 'N' }),
-        nInput,
-        btnMeasure,
-        btnReadParams,
-        btnReset,
-      ),
-      readingBox,
-    ),
-    el(
-      'div',
-      { class: 'panel' },
-      el('div', { class: 'panel-title' }, '参数与模式'),
-      el(
-        'div',
-        { class: 'row' },
-        el('label', { class: 'field', text: 'SET_PARAM' }),
-        paramType,
-        paramValue,
-        btnSetParam,
+    { class: 'stack' },
+    el('div', { class: 'card' },
+      el('div', { class: 'card-header' },
+        el('div', {}, el('h3', { class: 'card-title' }, '单点测量'),
+          el('p', { class: 'card-subtitle' }, '0x02 单点采集，返回阻值、状态与原始 ADC')),
+        el('div', { class: 'row' }, btnReadParams, btnReset)),
+      el('div', { class: 'row', style: { flexWrap: 'wrap' } },
+        field('P', pInput, '96px'), field('N', nInput, '96px'), btnMeasure),
+      readingBox),
+    el('div', { class: 'card' },
+      el('div', { class: 'card-header' },
+        el('div', {}, el('h3', { class: 'card-title' }, '参数与模式'),
+          el('p', { class: 'card-subtitle' }, '0x04 下发单个参数；0x0A 设置恒流/恒压与激励源'))),
+      el('div', { class: 'row', style: { flexWrap: 'wrap' } },
+        field('参数', paramType, '140px'), field('值', paramValue, '96px'), btnSetParam,
         el('span', { style: { width: '12px' } }),
-        el('label', { class: 'field', text: '模式' }),
-        modeSelect,
-        sourceSelect,
-        btnSetMode,
-      ),
-      paramsBox,
-    ),
-    el(
-      'div',
-      { class: 'panel' },
-      el('div', { class: 'panel-title' }, '原始命令', el('span', { class: 'hint', text: '直接下发一帧，DATA 用十六进制，如 01 00 02 00' })),
-      el('div', { class: 'row' }, rawCmd, rawData, btnRaw),
-      rawOut,
-    ),
-    el(
-      'div',
-      { class: 'panel' },
-      el('div', { class: 'panel-title' }, '点检测位', el('span', { class: 'hint', text: '0x07，当前固件未实现，用来验证错误路径' })),
-      el(
-        'div',
-        { class: 'row' },
-        el('label', { class: 'field', text: 'P' }),
-        checkP,
-        el('label', { class: 'field', text: 'N' }),
-        checkN,
-        btnCheck,
-      ),
-      checkOut,
-    ),
-    el('div', { class: 'panel' }, el('div', { class: 'panel-title' }, '原始帧'), frameLog),
+        field('模式', modeSelect, '110px'), field('源', sourceSelect, '130px'), btnSetMode),
+      paramsBox),
+    el('div', { class: 'card' },
+      el('div', { class: 'card-header' },
+        el('div', {}, el('h3', { class: 'card-title' }, '原始命令'),
+          el('p', { class: 'card-subtitle' }, '直接下发一帧，DATA 用十六进制')),
+        btnRaw),
+      el('div', { class: 'row' }, field('命令', rawCmd, '170px'), field('DATA', rawData, '240px')),
+      rawOut),
+    el('div', { class: 'card' },
+      el('div', { class: 'card-header' },
+        el('div', {}, el('h3', { class: 'card-title' }, '点检测位'),
+          el('p', { class: 'card-subtitle' }, '0x07，当前固件未实现，用来验证错误路径')),
+        btnCheck),
+      el('div', { class: 'row' }, field('P', checkP, '96px'), field('N', checkN, '96px')),
+      checkOut),
+    el('div', { class: 'card' },
+      el('div', { class: 'card-header' },
+        el('div', {}, el('h3', { class: 'card-title' }, '原始帧'),
+          el('p', { class: 'card-subtitle' }, '上位机与仿真器的收发记录，最多 300 行'))),
+      frameLog),
   );
 
   setActive(false);

@@ -1,5 +1,5 @@
 import { api } from '../lib/api.js';
-import { el, clear, createTable, confirmDialog, toast } from '../lib/ui.js';
+import { el, clear, createTable, confirmDialog, icon, toast } from '../lib/ui.js';
 import {
   RESULT_CLASS,
   RESULT_TEXT,
@@ -25,13 +25,13 @@ export function createMeasurePage({ getState, getRole, refresh }) {
 
   // ------------------------------------------------------------ 设备连接
 
-  const portSelect = el('select', { style: { width: '110px' } });
-  const simPortSelect = el('select', { style: { width: '110px' } });
-  const btnConnect = el('button', { text: '连接' });
-  const btnDisconnect = el('button', { class: 'secondary', text: '断开' });
-  const btnSim = el('button', { class: 'secondary', text: '启动仿真' });
-  const simTag = el('span', { class: 'tag muted', text: '仿真未启动' });
-  const deviceTag = el('span', { class: 'tag muted', text: '未连接' });
+  const portSelect = el('select', {});
+  const simPortSelect = el('select', {});
+  const btnConnect = el('button', { class: 'btn filled', html: `${icon('plug', 'sm')}<span>连接</span>` });
+  const btnDisconnect = el('button', { class: 'btn outlined', text: '断开' });
+  const btnSim = el('button', { class: 'btn tonal', text: '启动仿真' });
+  const deviceChip = el('span', { class: 'chip' });
+  const simChip = el('span', { class: 'chip' });
 
   async function loadPorts(state) {
     if (portsLoaded || !api.wsOpen) return;
@@ -90,32 +90,26 @@ export function createMeasurePage({ getState, getRole, refresh }) {
 
   // ------------------------------------------------------------ 产品信息
 
-  const modelInput = el('input', { type: 'text', style: { width: '150px' } });
-  const codeInput = el('input', { type: 'text', style: { width: '150px' } });
-  const operatorInput = el('input', { type: 'text', value: 'tester', style: { width: '110px' } });
+  const modelInput = el('input', { type: 'text' });
+  const codeInput = el('input', { type: 'text' });
+  const operatorInput = el('input', { type: 'text', value: 'tester' });
 
   // ------------------------------------------------------------ 测试项
 
-  function numberCell(row, field, min, max, width, integer = true) {
-    const input = el('input', {
-      type: 'number',
-      value: row[field] ?? '',
-      min: String(min),
-      max: String(max),
-      style: { width: `${width}px` },
-    });
+  function numberCell(row, field, min, max, integer = true) {
+    const input = el('input', { class: 'inline-input', type: 'number', value: row[field] ?? '' });
+    input.min = String(min);
+    input.max = String(max);
+    input.step = integer ? '1' : '0.1';
     input.addEventListener('input', () => {
-      const value = input.value === '' ? null : Number(input.value);
-      row[field] = value;
+      row[field] = input.value === '' ? null : Number(input.value);
     });
     return input;
   }
 
-  function selectCell(row, field, options, width) {
-    const select = el('select', { style: { width: `${width}px` } });
-    for (const opt of options) {
-      select.appendChild(el('option', { value: String(opt.value), text: opt.label }));
-    }
+  function selectCell(row, field, options) {
+    const select = el('select', { class: 'inline-input' });
+    for (const opt of options) select.appendChild(el('option', { value: String(opt.value), text: opt.label }));
     select.value = String(row[field]);
     select.addEventListener('change', () => {
       row[field] = Number(select.value);
@@ -124,41 +118,21 @@ export function createMeasurePage({ getState, getRole, refresh }) {
   }
 
   const itemColumns = [
+    { title: '序号', width: 70, render: (row) => numberCell(row, 'seq', 1, 999999) },
+    { title: 'P', width: 70, render: (row) => numberCell(row, 'p', 1, 640) },
+    { title: 'N', width: 70, render: (row) => numberCell(row, 'n', 1, 640) },
     {
-      title: '序号',
-      width: 70,
-      render: (row, i) => numberCell(row, 'seq', 1, 999999, 56),
-    },
-    { title: 'P', width: 70, render: (row) => numberCell(row, 'p', 1, 640, 56) },
-    { title: 'N', width: 70, render: (row) => numberCell(row, 'n', 1, 640, 56) },
-    {
-      title: '线制',
-      width: 84,
-      render: (row) =>
-        selectCell(row, 'wire', [
-          { value: 0, label: '二线' },
-          { value: 1, label: '四线' },
-        ], 70),
+      title: '线制', width: 90,
+      render: (row) => selectCell(row, 'wire', [{ value: 0, label: '二线' }, { value: 1, label: '四线' }]),
     },
     {
-      title: '量程',
-      width: 84,
-      render: (row) =>
-        selectCell(row, 'range', [0, 1, 2, 3, 4, 5].map((v) => ({ value: v, label: `R${v}` })), 70),
+      title: '量程', width: 90,
+      render: (row) => selectCell(row, 'range', [0, 1, 2, 3, 4, 5].map((v) => ({ value: v, label: `R${v}` }))),
     },
+    { title: '下限 Ω', width: 110, num: true, render: (row) => numberCell(row, 'minOhms', 0, 1000000, false) },
+    { title: '上限 Ω', width: 110, num: true, render: (row) => numberCell(row, 'maxOhms', 0, 1000000, false) },
     {
-      title: '下限 Ω',
-      width: 100,
-      render: (row) => numberCell(row, 'minOhms', 0, 1000000, 82, false),
-    },
-    {
-      title: '上限 Ω',
-      width: 100,
-      render: (row) => numberCell(row, 'maxOhms', 0, 1000000, 82, false),
-    },
-    {
-      title: '测量',
-      width: 60,
+      title: '测量', width: 80,
       render: (row) => {
         const box = el('input', { type: 'checkbox' });
         box.checked = row.measure;
@@ -169,10 +143,9 @@ export function createMeasurePage({ getState, getRole, refresh }) {
       },
     },
     {
-      title: '',
-      width: 60,
+      title: '', width: 64,
       render: (row) => {
-        const btn = el('button', { class: 'link danger', text: '删除' });
+        const btn = el('button', { class: 'icon-btn', title: '删除', html: icon('close', 'sm') });
         btn.addEventListener('click', () => {
           const index = items.indexOf(row);
           if (index >= 0) items.splice(index, 1);
@@ -188,13 +161,13 @@ export function createMeasurePage({ getState, getRole, refresh }) {
     columns: itemColumns,
     pageSize: 50,
     rowKey: (row) => row.key,
-    empty: '还没有测试项：导入 CSV / Excel / JSON，或点“添加一行”',
-    height: 200,
+    empty: '还没有测试项：导入 CSV / Excel / JSON，或点「添加一行」',
+    // 表头 44 + 行高 61 × 5（行内有 32px 输入框），取整倍数是避免底部露出半行
+    height: 349,
   });
-
   itemsTable.el.dataset.page = 'items';
 
-  const itemCount = el('span', { class: 'tag', text: '0' });
+  const itemCount = el('span', { class: 'chip' }, '0');
   const fileInput = el('input', { type: 'file', accept: '.csv,.json,.txt,.xlsx,.xls', style: { display: 'none' } });
 
   fileInput.addEventListener('change', async () => {
@@ -220,10 +193,10 @@ export function createMeasurePage({ getState, getRole, refresh }) {
     }
   });
 
-  const btnImport = el('button', { class: 'secondary', text: '导入 CSV / Excel / JSON' });
+  const btnImport = el('button', { class: 'btn outlined', html: `${icon('download', 'sm')}<span>导入 CSV / Excel / JSON</span>` });
   btnImport.addEventListener('click', () => fileInput.click());
 
-  const btnAdd = el('button', { class: 'secondary', text: '添加一行' });
+  const btnAdd = el('button', { class: 'btn text', html: `${icon('plus', 'sm')}<span>添加一行</span>` });
   btnAdd.addEventListener('click', () => {
     const last = items[items.length - 1];
     const item = makeItem(last ? last.p + 1 : 1, last ? last.n + 1 : 2);
@@ -238,7 +211,7 @@ export function createMeasurePage({ getState, getRole, refresh }) {
     itemCount.textContent = String(items.length);
   });
 
-  const btnClear = el('button', { class: 'secondary', text: '清空' });
+  const btnClear = el('button', { class: 'btn text', text: '清空' });
   btnClear.addEventListener('click', async () => {
     if (items.length === 0) return;
     if (!(await confirmDialog('清空全部测试项？', { danger: true }))) return;
@@ -247,10 +220,11 @@ export function createMeasurePage({ getState, getRole, refresh }) {
     itemCount.textContent = '0';
   });
 
-  const presetWire = el('select', { style: { width: '76px' } }, el('option', { value: '0', text: '二线' }), el('option', { value: '1', text: '四线' }));
-  const presetRange = el('select', { style: { width: '76px' } });
+  const presetWire = el('select', {});
+  presetWire.append(el('option', { value: '0', text: '二线' }), el('option', { value: '1', text: '四线' }));
+  const presetRange = el('select', {});
   [0, 1, 2, 3, 4, 5].forEach((v) => presetRange.appendChild(el('option', { value: String(v), text: `R${v}` })));
-  const btnPreset = el('button', { class: 'secondary', text: '应用到全部' });
+  const btnPreset = el('button', { class: 'btn text', text: '应用到全部' });
   btnPreset.addEventListener('click', () => {
     for (const item of items) {
       item.wire = Number(presetWire.value);
@@ -261,52 +235,42 @@ export function createMeasurePage({ getState, getRole, refresh }) {
 
   // ------------------------------------------------------------ 执行
 
-  const btnStart = el('button', { text: '开始测试' });
-  const btnStop = el('button', { class: 'danger', text: '停止', disabled: true });
-  const btnExport = el('button', { class: 'secondary', text: '导出 CSV', disabled: true });
-  const onlyFailBox = el('input', { type: 'checkbox' });
-  const jobTag = el('span', { class: 'tag muted', style: { display: 'none' } });
+  const btnStart = el('button', { class: 'btn filled', html: `${icon('play', 'sm')}<span>开始测试</span>` });
+  const btnStop = el('button', { class: 'btn danger', text: '停止', disabled: true });
+  const btnExport = el('button', { class: 'btn outlined', html: `${icon('download', 'sm')}<span>导出 CSV</span>`, disabled: true });
+  const onlyFailBox = el('input', { type: 'checkbox', 'data-testid': 'only-fail' });
+  const jobChip = el('span', { class: 'chip', style: { display: 'none' } });
 
-  const progressFill = el('i');
+  const progressBar = el('div', { class: 'bar', style: { width: '0%' } });
+
   const stats = {};
-  const statRow = el(
-    'div',
-    { class: 'stat', style: { margin: '8px 0 12px' } },
-    statCell('进度'),
-    statCell('通过'),
-    statCell('失败'),
-    statCell('测量失败'),
-    statCell('通过率'),
-    statCell('记录号'),
-  );
-  function statCell(label) {
-    const value = el('div', { class: 'stat-value', text: '-' });
+  // stat-value / stat-label 是自动化脚本（tools/cef_test）的取值钩子，不是样式类，别删
+  const kpiGrid = el('div', { class: 'kpi-grid', style: { margin: '12px 0' } });
+  for (const label of ['进度', '通过', '失败', '测量失败', '通过率', '记录号']) {
+    const value = el('div', { class: 'v stat-value', text: '-' });
     stats[label] = value;
-    return el('div', {}, value, el('div', { class: 'stat-label', text: label }));
+    kpiGrid.appendChild(el('div', { class: 'kpi' }, value, el('div', { class: 'k stat-label', text: label })));
   }
 
-  // 实时读数
-  const liveCanvas = el('canvas', { style: { width: '100%', height: '140px', display: 'none' } });
-  const liveValue = el('span', { class: 'stat-value', text: '-' });
-  const liveTag = el('span', { class: 'tag muted', text: '' });
-  const liveCount = el('span', { class: 'hint', text: '已推送 0 条（WS 数据流）' });
+  const liveCanvas = el('canvas', { class: 'canvas-host', style: { display: 'none' } });
+  const liveValue = el('span', { class: 'v', style: { fontFamily: 'var(--md-font-mono)' }, text: '-' });
+  const liveTag = el('span', { class: 'chip' });
+  const liveCount = el('span', { class: 'small muted', text: '已推送 0 条' });
   const liveEmpty = el('div', { class: 'empty-hint', text: '开始测试后，这里按服务端推送实时出数' });
 
   const resultColumns = [
-    { title: '序号', dataIndex: 'seq', key: 'seq', width: 60, render: (r) => r.seq },
-    { title: 'P', width: 60, render: (r) => r.p },
-    { title: 'N', width: 60, render: (r) => r.n },
-    { title: '线制', width: 60, render: (r) => (r.wire === 0 ? '二线' : '四线') },
-    { title: '量程', width: 60, render: (r) => `R${r.range}` },
+    { title: '序号', width: 64, num: true, render: (r) => r.seq },
+    { title: 'P', width: 64, num: true, render: (r) => r.p },
+    { title: 'N', width: 64, num: true, render: (r) => r.n },
+    { title: '线制', width: 64, render: (r) => (r.wire === 0 ? '二线' : '四线') },
+    { title: '量程', width: 64, render: (r) => `R${r.range}` },
     {
-      title: '测量值 Ω',
-      width: 110,
+      title: '测量值 Ω', width: 110, num: true,
       render: (r) => (r.value === null || r.value === undefined ? '-' : Number(r.value).toFixed(3)),
     },
     {
-      title: '判定',
-      width: 90,
-      render: (r) => el('span', { class: `tag ${RESULT_CLASS[r.result] || ''}`, text: RESULT_TEXT[r.result] || r.result }),
+      title: '判定', width: 100,
+      render: (r) => el('span', { class: `chip ${RESULT_CLASS[r.result] || ''}`, text: RESULT_TEXT[r.result] || r.result }),
     },
     { title: '原因', render: (r) => REASON_TEXT[r.reason] || r.reason || '' },
   ];
@@ -316,9 +280,10 @@ export function createMeasurePage({ getState, getRole, refresh }) {
     pageSize: 50,
     rowKey: (r) => `${r.seq}-${r.p}-${r.n}`,
     empty: '测试完成后在这里显示逐项结果',
-    height: 200,
+    rowClass: (r) => (r.result === 'fail' ? 'row-error' : ''),
+    // 表头 44 + 行高 40 × 6
+    height: 284,
   });
-
   resultsTable.el.dataset.page = 'results';
 
   function renderStats() {
@@ -327,43 +292,56 @@ export function createMeasurePage({ getState, getRole, refresh }) {
     const passed = progress?.passed ?? summary?.passed ?? 0;
     const failed = progress?.failed ?? summary?.failed ?? 0;
     const mfail = progress?.measureFailed ?? summary?.measureFailed ?? 0;
+    const rate = total > 0 ? (passed * 100) / total : 0;
     stats['进度'].textContent = `${done}/${total}`;
     stats['通过'].textContent = String(passed);
     stats['失败'].textContent = String(failed);
     stats['测量失败'].textContent = String(mfail);
-    stats['通过率'].textContent = `${total > 0 ? ((passed * 100) / total).toFixed(1) : '0.0'}%`;
+    stats['通过率'].textContent = `${rate.toFixed(1)}%`;
     stats['记录号'].textContent = recordId ? `#${recordId}` : '-';
-    progressFill.style.width = `${total > 0 ? Math.min(100, (done * 100) / total) : 0}%`;
+    stats['通过'].classList.toggle('ok', passed > 0);
+    stats['失败'].classList.toggle('bad', failed > 0);
+    stats['测量失败'].classList.toggle('warn', mfail > 0);
+    progressBar.style.width = `${total > 0 ? Math.min(100, (done * 100) / total) : 0}%`;
   }
 
   function renderLive() {
-    liveCount.textContent = `已推送 ${live.length} 条（WS 数据流）`;
+    liveCount.textContent = `已推送 ${live.length} 条`;
     const last = live[live.length - 1];
     if (!last) {
       liveValue.textContent = '-';
       liveTag.textContent = '';
+      liveTag.className = 'chip';
+      liveTag.style.display = 'none';
       liveCanvas.style.display = 'none';
       liveEmpty.style.display = '';
       return;
     }
     liveEmpty.style.display = 'none';
     liveCanvas.style.display = '';
-    liveValue.textContent = Number(last.ohms).toFixed(3) + ' Ω';
-    liveTag.className = `tag ${last.result === 'pass' ? 'pass' : 'fail'}`;
-    liveTag.textContent = `P${last.p}-N${last.n} ${last.result === 'pass' ? '通过' : '失败'}`;
+    liveTag.style.display = '';
+    liveValue.textContent = `${Number(last.ohms).toFixed(3)} Ω`;
+    liveTag.className = `chip ${last.result === 'pass' ? 'success' : 'error'}`;
+    liveTag.textContent = `P${last.p}-N${last.n} ${last.result === 'pass' ? '合格' : '不合格'}`;
     drawChart();
   }
 
   function drawChart() {
     const dpr = window.devicePixelRatio || 1;
     const width = liveCanvas.clientWidth || 600;
-    const height = liveCanvas.clientHeight || 140;
+    const height = liveCanvas.clientHeight || 150;
     liveCanvas.width = Math.round(width * dpr);
     liveCanvas.height = Math.round(height * dpr);
     const ctx = liveCanvas.getContext('2d');
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const styles = getComputedStyle(document.documentElement);
+    const surface = styles.getPropertyValue('--md-surface-container-highest').trim() || '#e0e3e9';
+    const line = styles.getPropertyValue('--md-primary').trim() || '#1b5e8c';
+    const muted = styles.getPropertyValue('--md-on-surface-variant').trim() || '#41474d';
+    const bad = styles.getPropertyValue('--md-error').trim() || '#ba1a1a';
+
     ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = '#0b1220';
+    ctx.fillStyle = surface;
     ctx.fillRect(0, 0, width, height);
 
     const values = live.map((p) => Number(p.ohms)).filter((v) => Number.isFinite(v));
@@ -372,42 +350,35 @@ export function createMeasurePage({ getState, getRole, refresh }) {
     const max = Math.max(...values);
     const flat = max - min < 1e-9;
     const span = Math.max(max - min, Math.abs(max) * 0.02, 0.001);
-    const padTop = 10;
-    const padBottom = 16;
+    const padTop = 12;
+    const padBottom = 20;
     const usable = height - padTop - padBottom;
-    const xOf = (i) => (i / (values.length - 1)) * (width - 8) + 4;
+    const xOf = (i) => (i / (values.length - 1)) * (width - 16) + 8;
     const yOf = (v) => (flat ? padTop + usable / 2 : padTop + usable - ((v - min) / span) * usable);
 
-    const mean = values.reduce((a, b) => a + b, 0) / values.length;
-    ctx.strokeStyle = '#2a3550';
-    ctx.setLineDash([4, 4]);
-    ctx.beginPath();
-    ctx.moveTo(0, yOf(mean));
-    ctx.lineTo(width, yOf(mean));
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    ctx.strokeStyle = '#4c8dff';
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = line;
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
     ctx.beginPath();
     values.forEach((v, i) => (i === 0 ? ctx.moveTo(xOf(i), yOf(v)) : ctx.lineTo(xOf(i), yOf(v))));
     ctx.stroke();
 
     live.forEach((p, i) => {
       if (p.result === 'pass' || !Number.isFinite(Number(p.ohms))) return;
-      ctx.fillStyle = '#ff5c5c';
+      ctx.fillStyle = bad;
       ctx.beginPath();
-      ctx.arc(xOf(i), yOf(Number(p.ohms)), 3, 0, Math.PI * 2);
+      ctx.arc(xOf(i), yOf(Number(p.ohms)), 3.5, 0, Math.PI * 2);
       ctx.fill();
     });
 
-    ctx.fillStyle = '#8ea0c0';
-    ctx.font = '11px Consolas, monospace';
-    if (flat) ctx.fillText(`恒定 ${max.toFixed(3)} Ω`, 6, 12);
-    else {
-      ctx.fillText(max.toFixed(3), 6, 12);
-      ctx.fillText(min.toFixed(3), 6, height - 4);
-      ctx.fillText(`均值 ${mean.toFixed(3)} Ω`, width - 110, height - 4);
+    ctx.fillStyle = muted;
+    ctx.font = '12px "Cascadia Mono", Consolas, monospace';
+    if (flat) {
+      ctx.fillText(`恒定 ${max.toFixed(3)} Ω`, 10, 18);
+    } else {
+      ctx.fillText(max.toFixed(3), 10, 18);
+      ctx.fillText(min.toFixed(3), 10, height - 6);
+      ctx.fillText(`均值 ${(values.reduce((a, b) => a + b, 0) / values.length).toFixed(3)} Ω`, width - 120, height - 6);
     }
   }
 
@@ -494,10 +465,10 @@ export function createMeasurePage({ getState, getRole, refresh }) {
     simPortSelect.disabled = !!state.sim?.running;
     btnSim.disabled = !isAdmin();
     btnSim.textContent = state.sim?.running ? '停止仿真' : '启动仿真';
-    simTag.className = `tag ${state.sim?.running ? 'info' : 'muted'}`;
-    simTag.textContent = state.sim?.running ? `仿真中 ${state.sim.port || ''}` : '仿真未启动';
-    deviceTag.className = `tag ${state.connected ? 'pass' : 'muted'}`;
-    deviceTag.textContent = state.connected ? `已连接 ${state.port || ''}` : '未连接';
+    simChip.className = `chip ${state.sim?.running ? 'filled' : ''}`;
+    simChip.textContent = state.sim?.running ? `仿真中 ${state.sim.port || ''}` : '仿真未启动';
+    deviceChip.className = `chip ${state.connected ? 'success' : ''}`;
+    deviceChip.textContent = state.connected ? `已连接 ${state.port || ''}` : '未连接';
   }
 
   function onProgress(p) {
@@ -505,9 +476,9 @@ export function createMeasurePage({ getState, getRole, refresh }) {
     running = p.state === 'running';
     btnStart.disabled = running;
     btnStop.disabled = !running;
-    jobTag.style.display = '';
-    jobTag.className = `tag ${p.state === 'completed' ? 'pass' : running ? 'info' : 'warn'}`;
-    jobTag.textContent =
+    jobChip.style.display = '';
+    jobChip.className = `chip ${p.state === 'completed' ? 'success' : running ? 'filled' : 'warning'}`;
+    jobChip.textContent =
       p.state === 'completed' ? '已完成' : running ? '进行中' : p.state === 'cancelled' ? '已取消' : '已中断';
     renderStats();
     if (!running && p.recordId) void loadRecord(p.recordId);
@@ -524,86 +495,89 @@ export function createMeasurePage({ getState, getRole, refresh }) {
     renderLive();
   }
 
+  const field = (label, control, width) =>
+    el('div', { class: 'field', style: width ? { width } : null },
+      el('label', { text: label }), control);
+
   const root = el(
     'div',
-    {},
+    { class: 'stack' },
     el(
       'div',
-      { class: 'panel' },
-      el('div', { class: 'panel-title' }, '设备连接'),
+      { class: 'card' },
       el(
         'div',
-        { class: 'row' },
-        el('label', { class: 'field', text: '串口' }),
-        portSelect,
+        { class: 'card-header' },
+        el('div', {}, el('h3', { class: 'card-title' }, '设备连接'),
+          el('p', { class: 'card-subtitle' }, '串口 COM7 接客户端，仿真端 COM8 由本机模拟响应')),
+        el('div', { class: 'row' }, deviceChip, simChip),
+      ),
+      el(
+        'div',
+        { class: 'row', style: { flexWrap: 'wrap' } },
+        field('串口', portSelect, '128px'),
         btnConnect,
         btnDisconnect,
-        el('span', { style: { width: '10px' } }),
-        el('label', { class: 'field', text: '仿真串口' }),
-        simPortSelect,
+        el('span', { style: { width: '12px' } }),
+        field('仿真串口', simPortSelect, '128px'),
         btnSim,
-        simTag,
-        deviceTag,
       ),
     ),
     el(
       'div',
-      { class: 'panel' },
-      el('div', { class: 'panel-title' }, '产品与操作员'),
+      { class: 'card' },
+      el('div', { class: 'card-header' },
+        el('div', {}, el('h3', { class: 'card-title' }, '产品与操作员')),
+        el('span', { class: 'card-subtitle', text: '记录会带上这三项，便于事后追溯' })),
       el(
         'div',
-        { class: 'row' },
-        el('label', { class: 'field', text: '型号' }),
-        modelInput,
-        el('label', { class: 'field', text: '编号' }),
-        codeInput,
-        el('label', { class: 'field', text: '操作员' }),
-        operatorInput,
+        { class: 'row', style: { flexWrap: 'wrap' } },
+        field('型号', modelInput, '200px'),
+        field('编号', codeInput, '200px'),
+        field('操作员', operatorInput, '160px'),
       ),
     ),
     el(
       'div',
-      { class: 'panel' },
-      el('div', { class: 'panel-title' }, '测试项', itemCount),
+      { class: 'card' },
+      el('div', { class: 'card-header' },
+        el('div', { class: 'row' }, el('h3', { class: 'card-title' }, '测试项'), itemCount),
+        el('div', { class: 'small muted', text: '支持 CSV / Excel / JSON，表头见帮助页' })),
       el(
         'div',
-        { class: 'row', style: { marginBottom: '8px' } },
+        { class: 'row', style: { marginBottom: '12px', flexWrap: 'wrap' } },
         btnImport,
         fileInput,
         btnAdd,
         btnClear,
-        el('span', { style: { width: '10px' } }),
-        el('label', { class: 'field', text: '统一线制' }),
-        presetWire,
-        el('label', { class: 'field', text: '量程' }),
-        presetRange,
+        el('span', { style: { width: '12px' } }),
+        field('统一线制', presetWire, '96px'),
+        field('量程', presetRange, '96px'),
         btnPreset,
       ),
       itemsTable.el,
     ),
     el(
       'div',
-      { class: 'panel' },
-      el('div', { class: 'panel-title' }, '执行'),
-      el(
-        'div',
-        { class: 'row', style: { marginBottom: '8px' } },
-        btnStart,
-        btnStop,
-        btnExport,
-        jobTag,
-        el('span', { style: { width: '10px' } }),
-        onlyFailBox,
-        el('span', { class: 'field', text: '只看失败' }),
-      ),
-      el('div', { class: 'progress' }, progressFill),
-      statRow,
-      el('div', { class: 'panel-title', style: { marginTop: '4px' } }, '实时读数'),
-      el('div', { class: 'row', style: { marginBottom: '6px' } }, liveValue, liveTag, liveCount),
-      liveEmpty,
-      liveCanvas,
-      el('div', { style: { height: '8px' } }),
-      resultsTable.el,
+      { class: 'card' },
+      el('div', { class: 'card-header' },
+        el('div', { class: 'row' }, el('h3', { class: 'card-title' }, '执行'), jobChip),
+        el('div', { class: 'row' },
+          btnStart, btnStop, btnExport,
+          el('label', { class: 'switch', title: '只看失败' },
+            onlyFailBox,
+            el('span', { class: 'track' }, el('span', { class: 'thumb' }))),
+          el('span', { class: 'small muted', text: '只看失败' }))),
+      el('div', { class: 'progress-linear' }, progressBar),
+      kpiGrid,
+      el('div', { class: 'grid-2' },
+        el('div', {},
+          el('div', { class: 'row', style: { marginBottom: '8px' } },
+            el('span', { class: 'card-title' }, '实时读数'), liveCount),
+          el('div', { class: 'row', style: { marginBottom: '8px' } }, liveValue, liveTag),
+          liveEmpty,
+          liveCanvas),
+        el('div', {}, el('div', { class: 'card-title', style: { marginBottom: '8px' } }, '逐项结果'), resultsTable.el)),
     ),
   );
 
