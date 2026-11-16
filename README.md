@@ -39,11 +39,13 @@
 - 已知缺口（都记在文档里，不是遗忘）：
   - 通讯层不持有环形缓冲，所以"来不及发送而丢弃数据"无法上报为 `core.overrun` 事件；
     模块自己的 `readings_` 队列满 4096 条时是静默丢弃（`eph205_module.cpp`）。
-  - 非法的 `credit` 消息只被忽略，没有回 `core.error`（通讯层错误通道尚未建立）。
   - 自动化脚本 `tools/e2e/ui/edge_webdriver/eph205_e2e.py` 里还有几处按旧界面写的选择器
     （用 `.tag` 类找"管理员/操作员"标识，新界面是 `.chip`），跑之前需要先更新。
   - Qt QWidget 前端只有方案没有实现，见 `docs/plan/03-web与Qt双前端策略.md`。
-  - 页面尚未嵌进 exe，客户机仍需要 `www/` 目录；安装包（Inno Setup）未做。
+  - 页面尚未嵌进 exe，客户机仍需要 `www/` 目录。
+  - 安装包已有：`tools/build/installer.iss` 由 `package_client.bat` 调用 ISCC 生成
+    `dist/EP-H205-<版本>-x64-setup.exe`。安装/启动/卸载流程用降低权限的测试包跑通过，
+    正式包的 admin 提权安装还没实测；代码签名也没做（未签名时 Windows 会拦一次）。
 
 ---
 

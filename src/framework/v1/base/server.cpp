@@ -1,6 +1,7 @@
 #include "base/server.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -22,10 +23,32 @@ const char* kCorsHeaders =
     "Access-Control-Allow-Methods: GET,POST,PUT,PATCH,DELETE,OPTIONS\r\n"
     "Access-Control-Allow-Headers: Content-Type, X-Session-Id\r\n";
 
+// WS 关闭码。和 HTTP 错误码（也是四位数）刻意错开，免得同一份日志里
+// 看到 4001 有两种解释。见规范 §7.10。目前只有会话结束这一档有发送点，
+// 4101/4102 留给"会话级致命错误"，那条路径还没出现
+constexpr uint16_t kCloseSessionEnd = 4100;
+
+// 发送队列硬上限（规范 §8.4）。超过说明链路已经跟不上，
+// 继续堆只会让心跳也排不出去
+constexpr uint64_t kSendQueueBytes = 64ull * 1024 * 1024;
+
 struct ClientCtx {
   std::string sid;
   bool is_ws = false;
 };
+
+// 发带原因码的关闭帧。RFC 6455 规定关闭帧前两字节是大端的码，
+// 后面可跟原因；原因一律用 ASCII，避免截断时把多字节字符切成半个。
+void SendClose(mg_connection* c, uint16_t code, const char* reason) {
+  if (c == nullptr) {
+    return;
+  }
+  std::string payload;
+  payload.push_back(static_cast<char>((code >> 8) & 0xFF));
+  payload.push_back(static_cast<char>(code & 0xFF));
+  payload += reason;
+  mg_ws_send(c, payload.data(), payload.size(), WEBSOCKET_OP_CLOSE);
+}
 
 std::string ToStr(const mg_str& s) { return std::string(s.buf, s.len); }
 
@@ -225,7 +248,11 @@ void V1Server::OnHttp(mg_connection* c, mg_http_message* hm) {
       return;
     }
     if (active != nullptr && active->sid == sid && active->ws != nullptr) {
-      active->ws->is_closing = 1;
+      // 先告诉旧连接为什么被关，再断开；客户端据此能区分
+      // "被顶替"和"网络断了"。is_draining 是"发完缓冲再关"，
+      // 用 is_closing 会把关闭帧直接丢掉
+      SendClose(active->ws, kCloseSessionEnd, "replaced by new session");
+      active->ws->is_draining = 1;
       active->ws = nullptr;
     }
     Session s;
@@ -260,15 +287,16 @@ void V1Server::OnHttp(mg_connection* c, mg_http_message* hm) {
     const std::string& r = parts.size() > 2 ? parts[2] : "";
 
     if (r == "capabilities" && method == "GET") {
-      ReplyJson(
-          c, 200,
-          {{"proto", 1},
-           {"server", "v1-base/0.1"},
-           {"caps", {"credit", "frag", "jobs", "blobs"}},
-           {"limits",
-            {{"max_data_frame", 8388608},
-             {"default_window", 1048576},
-             {"buffer_bytes", {{"sample", 4194304}, {"record", 8388608}}}}}});
+      ReplyJson(c, 200,
+                {{"proto", 1},
+                 {"server", "v1-base/0.1"},
+                 {"caps", {"credit", "frag", "jobs", "blobs"}},
+                 {"limits",
+                  {{"max_data_frame", 8388608},
+                   {"default_window", 1048576},
+                   {"buffer_bytes", {{"sample", 4194304}, {"record", 8388608}}},
+                   {"send_queue_bytes", kSendQueueBytes},
+                   {"frag_timeout_ms", 5000}}}});
       return;
     }
     if (r == "time" && method == "GET") {
@@ -715,6 +743,7 @@ void V1Server::OnWsMsg(mg_connection* c, mg_ws_message* wm) {
   if (!msg.contains("streams") || !msg["streams"].is_array()) {
     return;
   }
+  bool reported_bad = false;
   for (const auto& item : msg["streams"]) {
     if (!item.is_object()) {
       continue;
@@ -725,15 +754,41 @@ void V1Server::OnWsMsg(mg_connection* c, mg_ws_message* wm) {
     const auto bytes_it = item.find("bytes");
     if (id_it == item.end() || !id_it->is_number_unsigned() ||
         bytes_it == item.end() || !bytes_it->is_number_unsigned()) {
+      // 一条消息只报一次，免得客户端记账有 bug 时把事件通道刷屏
+      if (!reported_bad) {
+        reported_bad = true;
+        SendEvent(&it->second, "core.error",
+                  {{"code", 2005}, {"msg", "invalid credit"}});
+      }
       continue;
     }
     const uint32_t id = static_cast<uint32_t>(id_it->get<uint64_t>());
     const uint64_t bytes = bytes_it->get<uint64_t>();
     auto sub = it->second.subs.find(id);
-    if (sub != it->second.subs.end()) {
-      sub->second.outstanding = bytes >= sub->second.outstanding
-                                    ? 0
-                                    : sub->second.outstanding - bytes;
+    if (sub == it->second.subs.end()) {
+      continue;
+    }
+    // state 不参与配额，给它还额度等于什么都没做（规范 §8.2）
+    const StreamInfo* stream = nullptr;
+    FindStreamModule(id, &stream);
+    if (stream != nullptr && stream->cls == "state") {
+      SendEvent(&it->second, "core.error",
+                {{"code", 2005},
+                 {"msg", "credit ignored: state stream"},
+                 {"streamId", id}});
+      continue;
+    }
+    // 还的比欠的多：数值合法但超出窗口，超出部分截断（规范 §8.2）
+    if (bytes > sub->second.outstanding) {
+      const uint64_t excess = bytes - sub->second.outstanding;
+      sub->second.outstanding = 0;
+      SendEvent(&it->second, "core.error",
+                {{"code", 2009},
+                 {"msg", "credit exceeds window, truncated"},
+                 {"streamId", id},
+                 {"truncatedBytes", excess}});
+    } else {
+      sub->second.outstanding -= bytes;
     }
   }
 }
@@ -803,6 +858,21 @@ void V1Server::Tick() {
   if (s == nullptr || s->ws == nullptr) {
     return;
   }
+
+  // 积压超过硬上限：链路已经跟不上，继续堆只会把心跳也埋掉。
+  // 先告诉客户端是带宽问题再断开（规范 §8.5 的过载停机路径）
+  if (s->ws->send.len > kSendQueueBytes) {
+    Log("session overload sid=" + s->sid + "，发送队列积压 " +
+        std::to_string(s->ws->send.len) + " B");
+    SendEvent(s, "core.session.ending", {{"reason", "send queue overflow"}});
+    SafeStop("send queue overflow");
+    // 积压的几十 MB 没必要再发：丢掉，只把关闭帧送出去
+    mg_iobuf_del(&s->ws->send, 0, s->ws->send.len);
+    SendClose(s->ws, kCloseSessionEnd, "send queue overflow");
+    s->ws->is_draining = 1;
+    return;
+  }
+
   for (auto& kv : s->subs) {
     const uint32_t id = kv.first;
     Subscription& sub = kv.second;
@@ -871,10 +941,15 @@ void V1Server::Ping() {
     if (s.ws == nullptr) {
       continue;
     }
-    if (now > s.last_ms && now - s.last_ms > 15000) {
+    // 发送队列还堆着东西时不判死：那是我们发不出去，不是对面不理我们。
+    // 少了这一条，慢链路上 Ping 排在数据后面几十秒，就会把活连接掐掉
+    // （规范 §8.5）。队列本身由 Tick 里的上限兜底
+    const bool backlog = s.ws->send.len > 0;
+    if (!backlog && now > s.last_ms && now - s.last_ms > 15000) {
       Log("session timeout sid=" + s.sid);
       SafeStop("heartbeat timeout");
-      s.ws->is_closing = 1;
+      SendClose(s.ws, kCloseSessionEnd, "heartbeat timeout");
+      s.ws->is_draining = 1;
       continue;
     }
     mg_ws_send(s.ws, "", 0, WEBSOCKET_OP_PING);
