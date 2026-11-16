@@ -73,7 +73,7 @@ LRESULT CALLBACK MainWindow::WndProc(HWND hwnd, UINT message, WPARAM wparam,
 }
 
 // 排查关窗问题用：日志统一由 app_log 写 %TEMP%\eph205-client.log
-void WriteClientLog(const char* text) { app_log::Info(text); }
+void WriteClientLog(const char* text) { APP_LOG_INFO("CEF", "{}", text); }
 
 void MainWindow::Log(const char* text) { WriteClientLog(text); }
 

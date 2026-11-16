@@ -139,12 +139,17 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int) {
   // 页面与数据都相对 exe 目录找
   SetCurrentDirectoryA(ExeDir().c_str());
 
-  app_log::Init(ClientLogPath());
+  std::string log_err;
+  if (!app_log::Init(ClientLogPath(), log_err)) {
+    APP_LOG_WARN("MAIN", "日志文件不可用，只写调试器: {}", log_err);
+  }
 
   // 串口是独占资源，只允许一个实例
   HANDLE mutex = CreateMutexW(nullptr, TRUE, kMutexName);
   if (GetLastError() == ERROR_ALREADY_EXISTS) {
+    APP_LOG_INFO("MAIN", "已有实例在运行，激活它");
     ActivateExisting();
+    app_log::Shutdown();
     return 0;
   }
 
@@ -162,16 +167,20 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int) {
     }
   }
   if (!server) {
+    APP_LOG_ERROR("MAIN", "端口 {}-{} 都被占用", options.port,
+                  options.port + 19);
     MessageBoxW(nullptr, L"无法在本机绑定服务端口（8791-8810 都被占用）。",
                 L"EP-H205", MB_ICONERROR | MB_OK);
     if (mutex) {
       ReleaseMutex(mutex);
       CloseHandle(mutex);
     }
+    app_log::Shutdown();
     return 1;
   }
 
   std::thread server_thread([&server] { server->Run(); });
+  APP_LOG_INFO("MAIN", "服务端已就绪，端口 {}", actual_port);
 
   const std::string origin = "http://127.0.0.1:" + std::to_string(actual_port);
 
@@ -191,10 +200,12 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int) {
   // 关窗 -> 浏览器关闭 -> WS 断开 -> 通讯层 SafeStop，这里再显式停一次兜底
   server->Stop();
   server_thread.join();
+  APP_LOG_INFO("MAIN", "窗口已关闭，退出码 {}", rc);
 
   if (mutex) {
     ReleaseMutex(mutex);
     CloseHandle(mutex);
   }
+  app_log::Shutdown();
   return rc;
 }

@@ -102,7 +102,7 @@ src/apps/eph205/              EPH205 产品
 src/apps/eph205_app/          桌面客户端（组装：进程内服务端 + 外壳）
                               -> EPH205.exe
 src/common/cef_shell/         CEF 窗口外壳静态库（业务无关）
-src/common/log/               日志门面（spdlog 只在 .cpp 里出现）
+src/common/log/               日志门面：4 个宏 + Init/Shutdown，spdlog 的 logger 只在 .cpp 里
 src/examples/mongoose_c/      mongoose 纯 C 教学 demo  -> mongoose_c_demo.exe
 src/examples/mongoose_cpp/    mongoose 双通道波形 demo -> mongoose_cpp_demo.exe
 src/tests/                    单元测试（framework/ common/ modules/）
@@ -137,7 +137,13 @@ data/eph205/measurements.db    测量记录（SQLite，WAL 模式）
 data/eph205/*.imported         旧版 JSONL 自动导入后改名留档
 <exe 同级>/exports/            客户端导出 CSV 的落盘目录
 v1_config.json                 通讯层参数持久化（工作目录下）
+%TEMP%/eph205-client.log       客户端日志（4 MB × 3 份，保留 7 天）
 ```
+
+日志用法：`APP_LOG_INFO("EPH205", "端口 {} 已就绪", port);` 第一个参数是模块名，
+会出现在每行前面；后面是 fmt 语法（`{}` 占位），格式串写错编译期就报错。级别有
+debug/info/warn/error 四档，运行时用 `app_log::SetLevel` 调。初始化之前打的日志
+会缓存，`Init` 之后补写并标上 `[启动期]`。
 
 ---
 
@@ -223,6 +229,9 @@ python -I tools\e2e\ui\cef_test\eph205_client_check.py :: 桌面客户端（Chro
    `!/src/apps/eph205/www/eph205/**/*.obj` 这条例外保留。移动模型目录时记得同步改。
 10. **CEF 客户端跑久了 ChromeDriver 截图会整个卡死**（JS 仍能执行，重启进程恢复）。
     自动化脚本要为此留退路，这不是界面 bug。
+11. **日志只在 `.cpp` 里包含 `common/log/log.h`。** 头文件借了 spdlog 捆绑的 fmt
+    做 `{}` 变参，实测每个翻译单元多花约 0.7 秒；摊到十几个 `.cpp` 上可接受，
+    但让它跟着公共头滚进十几个头文件的包含链就没必要了。
 
 ---
 
