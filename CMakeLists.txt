@@ -15,6 +15,22 @@ if(MSVC)
   add_compile_options(/utf-8)
 endif()
 
+#-------------------------------------------------------------------------------
+# clangd 支持
+#-------------------------------------------------------------------------------
+
+# 导出 compile_commands.json
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+# 生成 .clangd 指向本次构建目录（该文件不入库）
+set(CLANGD_COMPILE_COMMANDS_DIR "${CMAKE_BINARY_DIR}")
+file(TO_CMAKE_PATH "${CLANGD_COMPILE_COMMANDS_DIR}" CLANGD_COMPILE_COMMANDS_DIR)
+configure_file(
+    "${CMAKE_SOURCE_DIR}/cmake/template/.clangd.in"
+    "${CMAKE_SOURCE_DIR}/.clangd"
+    @ONLY
+)
+
 # ============================================================
 # 共享前端资源 www/:服务端从磁盘提供页面,
 # 每次构建同步到 build/,保证 cwd 在 build/ 时也能找到

@@ -1,0 +1,105 @@
+---
+# .clang-tidy —— 静态分析规则
+#
+# 与 .clangd 配合：clangd 会读取本文件，在编辑器内实时提示；
+# 命令行用法：
+#     clang-tidy -p build/ <file>
+#
+# 规则集以「能发现真实缺陷、又不在 CEF 与三方库头文件里产生大量误报」为准。
+#
+# 注意：下方的排除项必须写在 Checks 的块标量之内，且不能在其中夹杂 #
+# 注释——YAML 块标量里的 # 是字面内容而非注释，会把相邻的排除项粘成一条
+# 无效条目，导致该检查静默失效。
+
+# 被排除的检查及其原因（仅为注解，实际排除见下）：
+#   readability-implicit-bool-conversion
+#       要求 if (ptr) 写成 if (ptr != nullptr)，属风格偏好而非缺陷
+#   readability-redundant-access-specifiers
+#   readability-magic-numbers / identifier-length / function-cognitive-complexity
+#   readability-convert-member-functions-to-static / avoid-const-params-in-decls
+#   modernize-use-trailing-return-type / avoid-c-arrays / use-nodiscard
+#   modernize-pass-by-value
+#       要求 sink 形参改为按值传递 + move，改动面大且收益有限
+#   performance-enum-size
+#       要求枚举指定底层类型，对小型枚举收益有限
+#   performance-no-int-to-ptr
+#       Win32 句柄（HWND / HANDLE）转指针是常规做法
+#   bugprone-easily-swappable-parameters / narrowing-conversions
+#   bugprone-implicit-widening-of-multiplication-result
+#   bugprone-unchecked-optional-access
+
+Checks: >
+  bugprone-*,
+  performance-*,
+  modernize-*,
+  modernize-use-nullptr,
+  readability-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-narrowing-conversions,
+  -bugprone-implicit-widening-of-multiplication-result,
+  -bugprone-unchecked-optional-access,
+  -performance-enum-size,
+  -performance-no-int-to-ptr,
+  -modernize-use-trailing-return-type,
+  -modernize-avoid-c-arrays,
+  -modernize-use-nodiscard,
+  -modernize-pass-by-value,
+  -readability-magic-numbers,
+  -readability-identifier-length,
+  -readability-function-cognitive-complexity,
+  -readability-convert-member-functions-to-static,
+  -readability-avoid-const-params-in-decls,
+  -readability-implicit-bool-conversion,
+  -readability-redundant-access-specifiers
+
+# 上面 modernize-use-nullptr 是**显式**列出的（它本就在 modernize-* 里）：
+# 0 与 NULL 传给指针形参时会在重载里静默选错，这条不能因为将来收窄 glob
+# 而丢掉。
+
+# 命名约定：按 CLAUDE.md 的命名表固化全仓一致的那几类——
+# 类型与函数 CamelCase，常量与枚举值 kPascalCase，变量/参数/成员
+# snake_case（成员带尾下划线）。局部 const 不要求 k 前缀，当普通变量写
+# （`const std::string err;`）。
+#
+# 成员函数同样按 CamelCase：CEF 的虚函数（OnContextInitialized、
+# GetXxxHandler）本身就是 PascalCase，不冲突。
+CheckOptions:
+  - {key: readability-identifier-naming.ClassCase, value: CamelCase}
+  - {key: readability-identifier-naming.StructCase, value: CamelCase}
+  - {key: readability-identifier-naming.UnionCase, value: CamelCase}
+  - {key: readability-identifier-naming.EnumCase, value: CamelCase}
+  - {key: readability-identifier-naming.TypeAliasCase, value: CamelCase}
+  - {key: readability-identifier-naming.TypedefCase, value: CamelCase}
+  - {key: readability-identifier-naming.FunctionCase, value: CamelCase}
+  - {key: readability-identifier-naming.MethodCase, value: CamelCase}
+  - {key: readability-identifier-naming.EnumConstantCase, value: CamelCase}
+  - {key: readability-identifier-naming.EnumConstantPrefix, value: k}
+  - {key: readability-identifier-naming.ConstexprVariableCase, value: CamelCase}
+  - {key: readability-identifier-naming.ConstexprVariablePrefix, value: k}
+  - {key: readability-identifier-naming.GlobalConstantCase, value: CamelCase}
+  - {key: readability-identifier-naming.GlobalConstantPrefix, value: k}
+  - {key: readability-identifier-naming.StaticConstantCase, value: CamelCase}
+  - {key: readability-identifier-naming.StaticConstantPrefix, value: k}
+  - {key: readability-identifier-naming.LocalConstantCase, value: lower_case}
+  - {key: readability-identifier-naming.GlobalVariableCase, value: lower_case}
+  - {key: readability-identifier-naming.LocalVariableCase, value: lower_case}
+  - {key: readability-identifier-naming.ParameterCase, value: lower_case}
+  - {key: readability-identifier-naming.PrivateMemberCase, value: lower_case}
+  - {key: readability-identifier-naming.PrivateMemberSuffix, value: _}
+  - {key: readability-identifier-naming.ProtectedMemberCase, value: lower_case}
+  - {key: readability-identifier-naming.ProtectedMemberSuffix, value: _}
+  - {key: readability-identifier-naming.PublicMemberCase, value: lower_case}
+  - {key: readability-identifier-naming.NamespaceCase, value: lower_case}
+
+WarningsAsErrors: ''
+
+# 只报告项目自身代码的问题，CEF 与三方库的头文件不参与。
+#
+# 项目 C++ 代码在 apps/ 下（apps/v1、apps/cef_client_shell、apps/mongoose_cpp），
+# 没有 src/ 与 tests/：按 (src|tests) 写等于一条都不检查。3rdparty 里放的是
+# cef-109、nlohmann、sqlite、mongoose 的头，用负向环视排掉
+# —— 实测 LLVM 的正则支持 (?!…)
+HeaderFilterRegex: '^(?!.*3rdparty).*(apps)[/\\]'
+
+# 按仓库根目录的 .clang-format 给出修复建议
+FormatStyle: file

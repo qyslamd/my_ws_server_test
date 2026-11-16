@@ -1,0 +1,43 @@
+---
+# .clang-format —— 项目代码格式化规则
+#
+# 遵循 Google C++ Style Guide（见 CLAUDE.md）。用法：
+#     clang-format -i <file>
+#     clang-format --dry-run --Werror <file>     # 只检查不改动，CI 可用
+#
+# 注意：顺序敏感的头文件处必须用 // clang-format off 包裹（CLAUDE.md 规则 14），
+# 否则下方的包含排序会调换顺序导致编译失败。已知需要保护的位置：
+#   - WindowsCrashHandler.h / GlobalExceptionHandler.cpp：windows.h 先于 dbghelp.h
+#   - logger.h：fmt 特化需在 spdlog 之后
+
+BasedOnStyle: Google
+
+# 缩进 2 空格、不使用 Tab（与 Google 默认一致，显式写出便于查阅）
+IndentWidth: 2
+UseTab: Never
+
+# 行长度。clang-format 无法单独放宽注释，故注释同样按此列宽折行
+ColumnLimit: 80
+
+# 指针与引用的 * / & 紧跟类型：int* p、const std::string& s
+PointerAlignment: Left
+
+# 单行 if / for 也强制加大括号（项目规则）
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+
+# 包含顺序：关联头文件 → C 标准库 → C++ 标准库 → 项目内头文件（见 CLAUDE.md）
+#
+# IncludeCategories 为首个匹配生效，故精确规则必须排在兜底规则之前：
+# '^<' 与 '.*' 都是兜底，任何更具体的规则都必须排在它们前面。
+IncludeBlocks: Regroup
+IncludeCategories:
+  # C 标准库
+  - Regex: '^<[a-z_0-9]+\.h>'
+    Priority: 1
+  # 其余角括号：C++ 标准库等
+  - Regex: '^<'
+    Priority: 2
+  # 项目内头文件
+  - Regex: '.*'
+    Priority: 3
