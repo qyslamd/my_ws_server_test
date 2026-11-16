@@ -8,7 +8,7 @@
 
 ## 1. 前因后果
 
-205 的界面已经做成了纯 web（`www/v1/eph205/`），在 Edge 里跑得没问题，
+205 的界面已经做成了纯 web（`apps/v1/www/eph205/`），在 Edge 里跑得没问题，
 在本地编译的 CEF 109 里也完整验证过：登录、连接、测量、实时读数、历史对比、
 三维视图全部正常，WebGL 走硬件 ANGLE/D3D11，页面无 JS 错误。
 
@@ -141,22 +141,25 @@ if(EPH205_BUILD_CLIENT)
   set(CEF_ROOT "${CMAKE_SOURCE_DIR}/3rdparty/cef-109" CACHE PATH "CEF binary distribution")
   list(APPEND CMAKE_MODULE_PATH "${CEF_ROOT}/cmake")
   find_package(CEF REQUIRED)
-  add_subdirectory(apps/eph205_client)
+  add_subdirectory(apps/cef_client_shell)
 endif()
 ```
 
-`apps/eph205_client/CMakeLists.txt`：
+`apps/cef_client_shell/CMakeLists.txt`（目标名与产物名分开：壳可复用，
+产物归产品）：
 
 ```cmake
-add_executable(EPH205 WIN32
+set(TARGET_NAME cef_client_shell)
+add_executable(${TARGET_NAME} WIN32
   main.cpp
   main_window.cpp
   client_handler.cpp
   # ...
 )
+set_target_properties(${TARGET_NAME} PROPERTIES OUTPUT_NAME EPH205)
 
-target_include_directories(EPH205 PRIVATE ${CEF_INCLUDE_DIRS})
-target_link_libraries(EPH205 PRIVATE
+target_include_directories(${TARGET_NAME} PRIVATE ${CEF_INCLUDE_DIRS})
+target_link_libraries(${TARGET_NAME} PRIVATE
   libcef_lib          # FindCEF.cmake 提供的导入目标
   libcef_dll_wrapper  # 见下
   v1_base             # 通讯底座
@@ -177,7 +180,7 @@ add_custom_command(TARGET EPH205 POST_BUILD
 | A. 每次编译 `libcef_dll/` 源码 | ABI 与我们的 CRT 完全一致，升级 CEF 只换目录 | 首次编译多 1~2 分钟 |
 | B. 复用你已经编好的 `libcef_dll_wrapper.lib` | 快 | CRT/编译选项必须完全一致，换机器容易踩坑 |
 
-**建议 A**：在 `apps/eph205_client/CMakeLists.txt` 里把 `${CEF_ROOT}/libcef_dll` 下的
+**建议 A**：在 `apps/cef_client_shell/CMakeLists.txt` 里把 `${CEF_ROOT}/libcef_dll` 下的
 `.cc` 收进一个静态库目标。源码在 3rdparty（不入库），编译规则在我们仓库里（入库）。
 
 ### 4.3 一个必须记住的点：子进程
@@ -476,7 +479,7 @@ P0~P2 是核心，估计 2~3 天；P3~P4 再加 1~2 天。
 
 | 阶段 | 内容 | 产物 |
 |---|---|---|
-| P0 | CEF 放 `3rdparty/cef-109`（gitignore）+ `find_package(CEF)` + 最小窗口 | `apps/eph205_client/` |
+| P0 | CEF 放 `3rdparty/cef-109`（gitignore）+ `find_package(CEF)` + 最小窗口 | `apps/cef_client_shell/` |
 | P1 | handler 清单：右键菜单清空、F5/Ctrl+R/Ctrl+P/Ctrl+S/Ctrl+U/缩放全拦、弹窗拦截、拖放拦截、权限拒绝、外链交给系统浏览器 | `client.cpp` |
 | P2 | 服务端线程化（`V1Server::Start/Stop`）+ 端口冲突自动顺延（8791..8810）+ 单实例 + CEF 日志 | `main.cpp` |
 | P3 | `--devtools` 开关（仅调试版开 9223）、导出落到 `exports\` | — |

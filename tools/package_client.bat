@@ -33,7 +33,7 @@ call :copy "%SRC%" "%APP%" chrome_200_percent.pak
 call :copy "%SRC%" "%APP%" resources.pak
 
 xcopy /e /i /q /y "%SRC%\locales" "%APP%\locales" >nul || exit /b 1
-xcopy /e /i /q /y "%ROOT%\www\v1" "%APP%\www\v1" >nul || exit /b 1
+xcopy /e /i /q /y "%ROOT%\apps\v1\www" "%APP%\www" >nul || exit /b 1
 
 if exist "%DIST%\EPH205-client.zip" del /q "%DIST%\EPH205-client.zip"
 powershell -NoProfile -Command "Compress-Archive -Path '%APP%\*' -DestinationPath '%DIST%\EPH205-client.zip' -CompressionLevel Optimal"

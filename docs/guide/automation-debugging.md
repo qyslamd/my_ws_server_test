@@ -1,6 +1,6 @@
 # 自动化调试指南
 
-> 适用于本仓库的 `v1_server` 与 `www/v1` 通用状态页。
+> 适用于本仓库的 `v1_server` 与 `apps/v1/www` 通用状态页。
 > 覆盖：WebDriver、有头 Edge + DevTools、CDP JS 断点、LLDB、CDB。
 > 以下命令均在本机实际走通。
 

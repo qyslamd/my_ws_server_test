@@ -274,7 +274,9 @@ void Mongoose_Server::on_http_msg(struct mg_connection *c, struct mg_http_messag
         return;
     }
     struct mg_http_serve_opts opts = {};
-    opts.root_dir = "www";
+    // 页面是本 demo 自己的(源目录 apps/mongoose_cpp/www,构建时复制到
+    // build/apps/mongoose_cpp/www)。生产前端在 apps/v1/www,两者无关。
+    opts.root_dir = "apps/mongoose_cpp/www";
     mg_http_serve_dir(c, hm, &opts);
 }
 

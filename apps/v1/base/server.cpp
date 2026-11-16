@@ -629,7 +629,9 @@ void V1Server::OnHttp(mg_connection* c, mg_http_message* hm) {
   }
 
   struct mg_http_serve_opts opts = {};
-  opts.root_dir = "www/v1";
+  // 静态根归底座自己(apps/v1/www):/ 是底座自检页,/eph205/ 是产品前端。
+  // 构建时由 copy_www 复制到 build/www,所以这里用相对工作目录的 "www"。
+  opts.root_dir = "www";
   mg_http_serve_dir(c, hm, &opts);
 }
 

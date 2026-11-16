@@ -33,3 +33,19 @@ todo/
 
 维护约定：新文档先想清楚归哪类再放；协议相关改动同步更新 `spec/` 下两份
 活文档；已实施的方案留在 `plan/` 作为设计记录，不迁去 guide。
+
+## 仓库顶层（页面归各自的 app，不设顶层 www）
+
+```text
+apps/v1/            底座 + 产品：base、modules/eph205、www/（静态根）
+apps/cef_client_shell/  CEF 客户端外壳（业务无关，产物 EPH205.exe）
+apps/mongoose_c/    mongoose 纯 C 教学 demo（页面内嵌在源码里）
+apps/mongoose_cpp/  mongoose 双通道波形 demo（页面在自带 www/）
+docs/               本文档（spec/guide/plan/thinking/todo）
+tools/              构建、打包、自动化脚本
+3rdparty/           mongoose、sqlite、json、cef（cef 不入库）
+```
+
+静态页不属于"仓库级资源"，而属于提供它的那个程序：`apps/v1/www` 由
+v1 服务端提供（构建时复制到 `build/www`），CEF 外壳直接复制它，
+`apps/mongoose_cpp/www` 只服务那个 demo。

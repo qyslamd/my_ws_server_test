@@ -21,8 +21,8 @@ endif()
 # ============================================================
 add_custom_target(copy_www ALL
   COMMAND ${CMAKE_COMMAND} -E copy_directory
-          "${CMAKE_CURRENT_SOURCE_DIR}/www" "${CMAKE_BINARY_DIR}/www"
-  COMMENT "Sync www/ -> build/www"
+          "${CMAKE_CURRENT_SOURCE_DIR}/apps/v1/www" "${CMAKE_BINARY_DIR}/www"
+  COMMENT "Sync apps/v1/www -> build/www"
   VERBATIM)
 
 # ============================================================
@@ -83,5 +83,5 @@ if(EPH205_BUILD_CLIENT)
   find_package(CEF REQUIRED)
   # wrapper 从源码编译，保证和我们的 CRT/编译选项一致
   add_subdirectory(${CEF_LIBCEF_DLL_WRAPPER_PATH} libcef_dll_wrapper EXCLUDE_FROM_ALL)
-  add_subdirectory(apps/eph205_client)
+  add_subdirectory(apps/cef_client_shell)
 endif()
