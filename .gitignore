@@ -95,3 +95,6 @@ Thumbs.db
 
 .codegraph/
 .clangd
+
+# vendored 的 chromedriver 与 CEF 109 配套，需要入库（覆盖上面的 *.exe）
+!3rdparty/chromedriver_win32_109.0.5414.74/chromedriver.exe
