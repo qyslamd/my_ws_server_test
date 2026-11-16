@@ -180,9 +180,14 @@ tools\build\package_client.bat         :: 打包：dist\EPH205 + zip
                                        :: 装了 Inno Setup 6 时再出安装包
 ```
 
-安装包由 `tools/build/installer.iss` 描述（Inno Setup 6）。`package_client.bat` 检测到
-`ISCC.exe` 会自动编译，产物是 `dist\EP-H205-<版本>-x64-setup.exe`；没装就跳过，
+安装包由 `tools/build/installer.iss` 描述（Inno Setup 6）。`package_client.bat` 按顺序找
+`ISCC.exe`：仓库内 `3rdparty/inno-setup-6/` → 系统安装的 `Inno Setup 6`；都找不到就跳过，
 只留免安装版目录与 zip。
+
+`3rdparty/inno-setup-6/` 约 27 MB，**不入库**（与 CEF 同一处理），换机器时把 Inno Setup 6
+的目录拷进去即可。产物是 `dist\EP-H205-<版本>-x64-setup.exe`。
+
+卸载不会删 `data/`：里面是测量记录（SQLite），属于业务数据，留给用户自己处理。
 
 端到端测试（`tools/e2e/`）。`api/` 只走 HTTP 与 WebSocket，`ui/` 需要浏览器或
 客户端进程与对应驱动：

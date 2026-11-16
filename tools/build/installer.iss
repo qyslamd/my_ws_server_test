@@ -43,8 +43,9 @@ OutputBaseFilename=EP-H205-{#BuildVersion}-{#BuildArch}-setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
-ArchitecturesAllowed=x64
-ArchitecturesInstallIn64BitMode=x64
+; x64compatible 是 Inno 6.3+ 的推荐写法：在 ARM64 上也能以 x64 模拟运行
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0
 PrivilegesRequired=admin
 UsePreviousAppDir=yes
@@ -71,7 +72,8 @@ Source: "{#StageDir}\*"; DestDir: "{app}"; \
 
 [Dirs]
 ; 程序把数据与导出写在自己目录下；装到 Program Files 时，
-; 这两个目录必须给普通用户写权限，否则保存记录/导出会失败
+; 这两个目录必须给普通用户写权限，否则保存记录/导出会失败。
+; 卸载时 data/ 里已有测量记录（SQLite），非空目录不会被删除，属预期。
 Name: "{app}\data"; Permissions: users-modify
 Name: "{app}\exports"; Permissions: users-modify
 
