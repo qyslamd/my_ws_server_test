@@ -42,7 +42,7 @@
   - 非法的 `credit` 消息只被忽略，没有回 `core.error`（通讯层错误通道尚未建立）。
   - 自动化脚本 `tools/edge_webdriver/eph205_e2e.py` 里还有几处按旧界面写的选择器
     （用 `.tag` 类找"管理员/操作员"标识，新界面是 `.chip`），跑之前需要先更新。
-  - Qt QWidget 前端只有方案没有实现，见 `docs/plan/web与Qt双前端策略.md`。
+  - Qt QWidget 前端只有方案没有实现，见 `docs/plan/03-web与Qt双前端策略.md`。
   - 页面尚未嵌进 exe，客户机仍需要 `www/` 目录；安装包（Inno Setup）未做。
 
 ---
@@ -152,7 +152,7 @@ v1_config.json                 通讯层参数持久化（工作目录下）
 5. **批量测量跑成"作业"。** 作业有 id、进度、取消；进度经事件
    `eph205.job.progress` 推给浏览器。测完写成一条记录进 SQLite，返回记录号。
 
-设备协议本身（帧格式、命令码、状态码）见 `docs/spec/ws-protocol-v1.md`
+设备协议本身（帧格式、命令码、状态码）见 `docs/spec/02-ws-protocol-v1.md`
 与 `apps/v1/modules/eph205/protocol.h`。
 
 ---
@@ -206,15 +206,14 @@ python -I tools\cef_test\eph205_client_check.py :: 桌面客户端（ChromeDrive
 
 完整索引见 [`docs/README.md`](docs/README.md)。
 
-| 想知道什么                                        | 看哪里                               |
-| ------------------------------------------------- | ------------------------------------ |
-| 设备协议、帧格式、命令码、错误码                  | `docs/spec/ws-protocol-v1.md`        |
-| 协议落地到什么程度、还差什么                      | `docs/spec/v1-checklist.md`          |
-| 怎么跑、前端结构、API 清单                        | `docs/guide/eph205-web.md`           |
-| 自动化调试怎么搭                                  | `docs/guide/automation-debugging.md` |
-| 为什么这么设计、当时否掉了什么                    | `docs/thinking/`                     |
-| 以后要做的方案（Qt 前端、传输层抽象、CEF 客户端） | `docs/plan/`                         |
-| 待办                                              | `docs/todo/todo.md`                  |
+| 想知道什么                                        | 看哪里                                  |
+| ------------------------------------------------- | --------------------------------------- |
+| 设备协议、帧格式、命令码、错误码                  | `docs/spec/02-ws-protocol-v1.md`        |
+| 协议落地到什么程度、还差什么                      | `docs/spec/03-v1-checklist.md`          |
+| 怎么跑、前端结构、API 清单                        | `docs/guide/03-eph205-web.md`           |
+| 自动化调试怎么搭                                  | `docs/guide/06-automation-debugging.md` |
+| 以后要做的方案（Qt 前端、传输层抽象、CEF 客户端） | `docs/plan/`                            |
+| 待办                                              | `docs/todo.md`                          |
 
 ---
 
