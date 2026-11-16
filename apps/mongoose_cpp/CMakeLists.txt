@@ -11,12 +11,14 @@ set(JSON_DIR "${CMAKE_SOURCE_DIR}/3rdparty")
 add_library(mongoose STATIC "${MONGOOSE_DIR}/mongoose.c")
 target_include_directories(mongoose PUBLIC "${MONGOOSE_DIR}")
 
-add_executable(mongoose_demo mongoose_main.cpp
+set(TARGET_NAME "mongoose_cpp_demo")
+add_executable(${TARGET_NAME}
+  main.cpp
   mongoose_server.cpp
   mongoose_server.h
   )
 
 # 引入 nlohmann/json 头文件
-target_include_directories(mongoose_demo PRIVATE "${JSON_DIR}")
+target_include_directories(${TARGET_NAME} PRIVATE "${JSON_DIR}")
 
-target_link_libraries(mongoose_demo PRIVATE mongoose)
+target_link_libraries(${TARGET_NAME} PRIVATE mongoose)
