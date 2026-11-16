@@ -6,10 +6,11 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# 所有 target 的输出统一到 bin 和 lib 下
+# 输出扁平化：exe 与运行期资源(www、data)都在构建目录根，
+# 静态库进 lib/。exe 用相对工作目录找页面，这样从构建目录直接启动即可。
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
 if(MSVC)
   # 全局按 UTF-8 解析源码:本项目源码含中文注释,
@@ -40,21 +41,11 @@ configure_file(
 )
 
 # ============================================================
-# 共享前端资源 www/:服务端从磁盘提供页面,
-# 每次构建同步到 build/,保证 cwd 在 build/ 时也能找到
-# ============================================================
-add_custom_target(copy_www ALL
-  COMMAND ${CMAKE_COMMAND} -E copy_directory
-          "${CMAKE_CURRENT_SOURCE_DIR}/apps/v1/www" "${CMAKE_BINARY_DIR}/www"
-  COMMENT "Sync apps/v1/www -> build/www"
-  VERBATIM)
-
-# ============================================================
 # vendored 第三方库（源码入库，版本写进目录名）
 #   mongoose-7.23     HTTP/WS
 #   sqlite-3540100    SQLite amalgamation（业务落库用）
 #   googletest-1.17.0 单元测试框架（只留源码，用法见 tests/）
-#   spdlog-1.17.0     日志（只留源码，捆绑 fmt；入口是 apps/common/log.h）
+#   spdlog-1.17.0     日志（只留源码，捆绑 fmt；入口是 src/common/log/log.h）
 #   3rdparty/cef-109  CEF 二进制约 260 MB，不入库，见 docs/CEF客户端方案.md
 # ============================================================
 add_library(sqlite3 STATIC
@@ -92,22 +83,25 @@ add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/spdlog-1.17.0"
 # ============================================================
 # 子目标：公共基础设施（日志门面）
 # ============================================================
-add_subdirectory(apps/common)
+add_subdirectory(src/common/log)
 
 # ============================================================
-# 子目标:mongoose 版双通道 WS 服务端
+# 子目标：基础通讯框架（纯 C/C++，零 Qt）
 # ============================================================
-add_subdirectory(apps/mongoose_cpp)
+add_subdirectory(src/framework/v1)
 
 # ============================================================
-# 子目标:mongoose 纯 C 教学 demo(单文件,零业务,便于学习理解)
+# 子目标：EPH205 产品（模块 + 页面 + 入口）
 # ============================================================
-add_subdirectory(apps/mongoose_c)
+add_subdirectory(src/apps/eph205)
 
 # ============================================================
-# 子目标:v1 业务无关通讯层(纯 C/C++,零 Qt)
+# 子目标：示例
+#   mongoose_cpp  双通道 WS 波形（按协议改造过的参考实现）
+#   mongoose_c    纯 C 教学（单文件，零业务）
 # ============================================================
-add_subdirectory(apps/v1)
+add_subdirectory(src/examples/mongoose_cpp)
+add_subdirectory(src/examples/mongoose_c)
 
 # ============================================================
 # 单元测试:googletest(vendored) + ctest
@@ -117,28 +111,28 @@ add_subdirectory(apps/v1)
 include(CTest)
 
 if(BUILD_TESTING)
-  add_subdirectory(tests)
+  add_subdirectory(src/tests)
 endif()
 
 # ============================================================
-# 子目标:EPH205 桌面客户端(CEF)
+# 子目标：桌面客户端（CEF 窗口外壳 + 进程内服务端）
 #
-# CEF 二进制放在 3rdparty/cef-109(不入库),默认不参与构建:
-#   cmake -DEPH205_BUILD_CLIENT=ON ...
+# CEF 二进制放在 3rdparty/cef-109（不入库），默认不参与构建：
+#   cmake -DBUILD_CEF_SHELL=ON ...
 # ============================================================
-option(EPH205_BUILD_CLIENT "构建 CEF 桌面客户端(需要 3rdparty/cef-109)" OFF)
+option(BUILD_CEF_SHELL "构建 CEF 桌面客户端（需要 3rdparty/cef-109）" OFF)
 
-if(EPH205_BUILD_CLIENT)
+if(BUILD_CEF_SHELL)
   if(NOT EXISTS "${CMAKE_SOURCE_DIR}/3rdparty/cef-109/cmake/FindCEF.cmake")
     message(FATAL_ERROR
-      "找不到 CEF: ${CMAKE_SOURCE_DIR}/3rdparty/cef-109
-"
-      "把 CEF 109 的二进制约解压到 3rdparty/cef-109 后再开 EPH205_BUILD_CLIENT。")
+      "找不到 CEF: ${CMAKE_SOURCE_DIR}/3rdparty/cef-109\n"
+      "把 CEF 109 的二进制约解压到 3rdparty/cef-109 后再开 BUILD_CEF_SHELL。")
   endif()
   set(CEF_ROOT "${CMAKE_SOURCE_DIR}/3rdparty/cef-109" CACHE PATH "CEF binary distribution")
   list(APPEND CMAKE_MODULE_PATH "${CEF_ROOT}/cmake")
   find_package(CEF REQUIRED)
   # wrapper 从源码编译，保证和我们的 CRT/编译选项一致
   add_subdirectory(${CEF_LIBCEF_DLL_WRAPPER_PATH} libcef_dll_wrapper EXCLUDE_FROM_ALL)
-  add_subdirectory(apps/cef_client_shell)
+  add_subdirectory(src/common/cef_shell)
+  add_subdirectory(src/apps/eph205_app)
 endif()

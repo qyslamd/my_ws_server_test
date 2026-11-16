@@ -11,7 +11,7 @@ status: draft
 
 # 自动化调试指南
 
-> 适用于本仓库的 `v1_server` 与 `apps/v1/www` 通用状态页。
+> 适用于本仓库的 `v1_server` 与 `src/apps/eph205/www` 通用状态页。
 > 覆盖：WebDriver、有头 Edge + DevTools、CDP JS 断点、LLDB、CDB。
 > 以下命令均在本机实际走通。
 
@@ -48,7 +48,7 @@ msedge --version
 build.bat
 ```
 
-产物：`build\v1_server.exe`、`build\v1_server.pdb`。
+产物：构建目录根下的 `v1_server.exe` 与 `v1_server.pdb`（`build/ninja-x64-release/`）。
 
 ### 2.2 Debug
 

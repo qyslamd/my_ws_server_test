@@ -1,6 +1,6 @@
 """驱动 EPH205 客户端到几个状态，并抓「窗口级」截图（含系统标题栏）。
 
-前置：build-client\\EPH205.exe --devtools 已运行（9223），ChromeDriver 在 9516。
+前置：build/ninja-x64-release/EPH205.exe --devtools 已运行（9223），ChromeDriver 在 9516。
 
 抓图用 tools/capture_window.ps1（PrintWindow），所以窗口边框和标题栏都在。
 """

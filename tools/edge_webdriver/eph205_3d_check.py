@@ -19,6 +19,7 @@ APP = "http://127.0.0.1:8790/eph205/"
 HEALTH = "http://127.0.0.1:8790/api/v1/health"
 EDGE = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
 ROOT = r"D:\trae_workspace\cef109_ws_base_env"
+BUILD_DIR = os.path.join("build", "ninja-x64-release")
 SHOT = os.path.join(ROOT, "temp", "eph205_3d.png")
 
 
@@ -88,8 +89,8 @@ def main():
         print("复用已在运行的服务端")
     except Exception:
         proc = subprocess.Popen(
-            [os.path.join(ROOT, "build", "eph205_server.exe"), "8790"],
-            cwd=os.path.join(ROOT, "build"))
+            [os.path.join(ROOT, BUILD_DIR, "eph205_server.exe"), "8790"],
+            cwd=os.path.join(ROOT, BUILD_DIR))
         for _ in range(40):
             try:
                 http("GET", HEALTH)

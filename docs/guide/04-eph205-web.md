@@ -35,9 +35,9 @@ status: draft
 ## 2. 结构
 
 ```text
-apps/v1/base/                 业务无关通讯层
-apps/v1/main.cpp              纯通讯层入口 -> v1_server.exe
-apps/v1/modules/eph205/       EPH205 业务模块
+src/framework/v1/base/                 业务无关通讯层
+src/framework/v1/main.cpp              纯通讯层入口 -> v1_server.exe
+src/apps/eph205/       EPH205 业务模块
   protocol.*                  帧编解码 AA 55 CMD LEN DATA SUM8
   serial_port.*               Win32 串口 + 端口枚举
   eph205_client.*             一问一答帧事务（阻塞，仅工作线程调用）
@@ -45,14 +45,14 @@ apps/v1/modules/eph205/       EPH205 业务模块
   measurement_store.*         SQLite 落库（measurements.db）+ CSV 导出
   eph205_module.*             v1::Module 实现（命令/参数/作业/流）
   main_eph205.cpp             业务实例入口 -> eph205_server.exe
-apps/v1/www/                  v1 静态根：/ 通讯层自检页、/eph205/ 产品前端
+src/apps/eph205/www/                  v1 静态根：/ 通讯层自检页、/eph205/ 产品前端
   index.html app.js style.css 通讯层自检页（调 capabilities/modules/streams）
   eph205/                     EPH205 前端（原生 ES module + CSS，无构建）
     vendor/                   three.js 与 SheetJS 的本地副本
     help3d/                   三维资产
-apps/cef_client_shell/        Win32 + CEF 109 客户端外壳（业务无关）-> EPH205.exe
-apps/mongoose_c/              mongoose 纯 C 教学 demo（单文件）
-apps/mongoose_cpp/            mongoose 双通道波形 demo（自带页面 www/）
+src/apps/eph205_app/        Win32 + CEF 109 客户端外壳（业务无关）-> EPH205.exe
+src/examples/mongoose_c/              mongoose 纯 C 教学 demo（单文件）
+src/examples/mongoose_cpp/            mongoose 双通道波形 demo（自带页面 www/）
 ```
 
 通讯层与业务的分界：通讯层把 `base/` 编成 `v1_base.lib`，业务实例自带 `main`。
@@ -62,7 +62,7 @@ apps/mongoose_cpp/            mongoose 双通道波形 demo（自带页面 www/�
 
 ### 前端形态：无框架、无构建
 
-`apps/v1/www/eph205/` 里的就是上线用的文件，没有打包步骤：
+`src/apps/eph205/www/eph205/` 里的就是上线用的文件，没有打包步骤：
 
 ```text
 index.html        import map 把 "three" 指到 ./vendor/three.module.js
@@ -185,7 +185,7 @@ notMeasured/passRate/durationMs）。
 Excel 用 SheetJS（`xlsx@0.20.3`，官方 CDN 版；npm 上的 0.18.5 带
 [CVE-2023-30533](https://github.com/advisories/GHSA-4r6h-8v6p-xvw6)）。
 
-库文件已 vendor 到 `apps/v1/www/eph205/vendor/xlsx.full.min.js`，
+库文件已 vendor 到 `src/apps/eph205/www/eph205/vendor/xlsx.full.min.js`，
 **只在第一次导入 Excel 时用 `<script>` 懒加载**，不进首屏。
 
 ## 6. 判定与落库
@@ -205,23 +205,25 @@ Excel 用 SheetJS（`xlsx@0.20.3`，官方 CDN 版；npm 上的 0.18.5 带
 构建：
 
 ```bat
-build.bat
-cmake --build build --target copy_www
+build.bat                      :: x64 + release
+build.bat x64 debug            :: 需要调试符号时
 ```
 
-启动（工作目录必须是 `build\`，静态页从 `apps/v1/www` 取）：
+启动（工作目录必须是构建目录；页面在构建 `eph205_server` 时自动复制到它的同级
+`www/`）：
 
-```bat
-cd build
-eph205_server.exe 8790 --auth
+```bash
+cd build/ninja-x64-release
+./eph205_server.exe 8790 --auth
 ```
 
 不加 `--auth` 时服务端不校验角色，界面仍会按角色隐藏入口。
 
 访问 `http://127.0.0.1:8790/eph205/`。
 
-前端没有构建步骤：改 `apps/v1/www/eph205/` 下的文件，重新 `copy_www` 后刷新即可。
-调试时直接改 `build/www/eph205/` 里的副本也能立即生效（下一次 full build 会被覆盖）。
+前端没有构建步骤：改 `src/apps/eph205/www/eph205/` 下的文件，重新构建
+`eph205_server` 后刷新即可（复制动作挂在它的 POST_BUILD 上）。
+调试时直接改构建目录 `www/eph205/` 里的副本也能立即生效（下次构建会被覆盖）。
 
 ---
 
@@ -308,7 +310,7 @@ sim_start sim_stop sim_set sim_config sim_clear history_delete
 
 ## 13. 三维视图
 
-资产来自参考项目 `src/app/assets/help3d/`，原样拷到 `apps/v1/www/eph205/help3d/`。
+资产来自参考项目 `src/app/assets/help3d/`，原样拷到 `src/apps/eph205/www/eph205/help3d/`。
 
 约定（照抄 Blender 导出）：
 
@@ -318,7 +320,7 @@ sim_start sim_stop sim_set sim_config sim_clear history_delete
 - 同一份 OBJ 复用多次（三块多路器板）时先加载一次再克隆，克隆后逐个复制材质，
   否则高亮一个部件会把同款全点亮。
 
-实现：`apps/v1/www/eph205/lib/viewer3d.js`，OrbitControls 旋转/缩放/平移，
+实现：`src/apps/eph205/www/eph205/lib/viewer3d.js`，OrbitControls 旋转/缩放/平移，
 点击部件高亮并在工具栏显示名称。
 
 ## 14. 注意事项

@@ -1,8 +1,9 @@
 # ============================================================
-# 公共基础设施
+# 日志门面
 #
 # log.h 是 spdlog 的唯一入口：spdlog 头只在 log.cpp 里出现，
 # 这样别的翻译单元不会被模板和 fmt 拖慢编译。
+# 调用方以 "common/log/log.h" 引用。
 # ============================================================
 add_library(app_log STATIC
   log.cpp
@@ -10,7 +11,7 @@ add_library(app_log STATIC
 )
 
 target_include_directories(app_log PUBLIC
-  ${CMAKE_SOURCE_DIR}/apps
+  ${CMAKE_SOURCE_DIR}/src
 )
 
 # PRIVATE：spdlog 的头不进调用方的编译单元

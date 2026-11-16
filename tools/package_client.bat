@@ -1,12 +1,13 @@
 @echo off
 setlocal
 set "ROOT=%~dp0.."
-set "SRC=%ROOT%\build-client"
+set "SRC=%ROOT%\build\ninja-x64-release"
 set "DIST=%ROOT%\dist"
 set "APP=%DIST%\EPH205"
+set "VERSION=0.1.0"
 
 if not exist "%SRC%\EPH205.exe" (
-    echo [ERROR] run tools\build_client.bat first
+    echo [ERROR] run build.bat x64 release client first
     exit /b 1
 )
 
@@ -33,12 +34,30 @@ call :copy "%SRC%" "%APP%" chrome_200_percent.pak
 call :copy "%SRC%" "%APP%" resources.pak
 
 xcopy /e /i /q /y "%SRC%\locales" "%APP%\locales" >nul || exit /b 1
-xcopy /e /i /q /y "%ROOT%\apps\v1\www" "%APP%\www" >nul || exit /b 1
+xcopy /e /i /q /y "%ROOT%\src\apps\eph205\www" "%APP%\www" >nul || exit /b 1
 
 if exist "%DIST%\EPH205-client.zip" del /q "%DIST%\EPH205-client.zip"
 powershell -NoProfile -Command "Compress-Archive -Path '%APP%\*' -DestinationPath '%DIST%\EPH205-client.zip' -CompressionLevel Optimal"
+echo [OK] zip: %DIST%\EPH205-client.zip
 
-echo [OK] %APP%
+:: build installer when Inno Setup 6 is available; otherwise skip
+set "ISCC="
+if exist "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" set "ISCC=%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
+if not defined ISCC if exist "%ProgramFiles%\Inno Setup 6\ISCC.exe" set "ISCC=%ProgramFiles%\Inno Setup 6\ISCC.exe"
+if not defined ISCC (
+    echo [SKIP] Inno Setup 6 not found, installer not built.
+    goto :done
+)
+
+"%ISCC%" /DStageDir="%APP%" /DRepoRoot="%ROOT%" /DBuildVersion=%VERSION% ^
+    /DBuildArch=x64 /DOutputDir="%DIST%" "%~dp0installer.iss"
+if errorlevel 1 (
+    echo [ERROR] installer build failed.
+    exit /b 1
+)
+echo [OK] installer: %DIST%\EP-H205-%VERSION%-x64-setup.exe
+
+:done
 endlocal
 exit /b 0
 

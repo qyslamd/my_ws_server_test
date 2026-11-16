@@ -28,6 +28,7 @@ APP = "http://127.0.0.1:8790/eph205/"
 HEALTH = "http://127.0.0.1:8790/api/v1/health"
 EDGE = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
 ROOT = r"D:\trae_workspace\cef109_ws_base_env"
+BUILD_DIR = os.path.join("build", "ninja-x64-release")
 CSV_PATH = os.path.join(ROOT, "temp", "eph205_items.csv")
 XLSX_PATH = os.path.join(ROOT, "temp", "eph205_items.xlsx")
 SHOT = os.path.join(ROOT, "temp", "eph205_e2e.png")
@@ -145,10 +146,10 @@ def ensure_server():
         return
     except Exception:
         pass
-    exe = os.path.join(ROOT, "build", "eph205_server.exe")
+    exe = os.path.join(ROOT, BUILD_DIR, "eph205_server.exe")
     # --auth 打开服务端的角色校验（admin 才能执行调试/维护命令）
     SERVER_PROC = subprocess.Popen([exe, "8790", "--auth"],
-                                   cwd=os.path.join(ROOT, "build"))
+                                   cwd=os.path.join(ROOT, BUILD_DIR))
     wait(HEALTH)
     print("已启动服务端 pid=", SERVER_PROC.pid)
 

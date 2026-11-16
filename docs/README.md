@@ -49,15 +49,18 @@ todo.md                        项目待办与设计储备
 ## 仓库顶层（页面归各自的 app，不设顶层 www）
 
 ```text
-apps/v1/            通讯层 + 产品：base、modules/eph205、www/（静态根）
-apps/cef_client_shell/  CEF 客户端外壳（业务无关，产物 EPH205.exe）
-apps/mongoose_c/    mongoose 纯 C 教学 demo（页面内嵌在源码里）
-apps/mongoose_cpp/  mongoose 双通道波形 demo（页面在自带 www/）
-docs/               本文档（spec/guide/plan，待办在 todo.md）
-tools/              构建、打包、自动化脚本
-3rdparty/           mongoose、sqlite、json、cef（cef 不入库）
+src/framework/v1/      基础通讯框架（不含设备代码）
+src/apps/eph205/       产品：模块、页面 www/、入口
+src/apps/eph205_app/   桌面客户端（组装进程内服务端 + 外壳）
+src/common/cef_shell/  CEF 窗口外壳静态库（业务无关）
+src/common/log/        日志门面
+src/examples/          mongoose_c、mongoose_cpp 两个 demo
+src/tests/             单元测试
+docs/                  本文档（spec/guide/plan/lesson，待办在 todo.md）
+tools/                 构建、打包、自动化脚本
+3rdparty/              mongoose、sqlite、spdlog、googletest 等（cef 不入库）
 ```
 
-静态页不属于"仓库级资源"，而属于提供它的那个程序：`apps/v1/www` 由
-v1 服务端提供（构建时复制到 `build/www`），CEF 外壳直接复制它，
-`apps/mongoose_cpp/www` 只服务那个 demo。
+静态页不属于"仓库级资源"，而属于提供它的那个程序：`src/apps/eph205/www` 由
+通讯层提供（构建时复制到构建目录的 `www/`），CEF 外壳直接复制它，
+`src/examples/mongoose_cpp/www` 只服务那个 demo，复制到构建目录的 `www-demo/`。

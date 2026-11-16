@@ -1,11 +1,11 @@
-#pragma once
+#ifndef SRC_COMMON_CEF_SHELL_CLIENT_H_
+#define SRC_COMMON_CEF_SHELL_CLIENT_H_
 
-// CEF 的 App / Client / Handler。
-// 只实现这个客户端需要的部分：不要浏览器外壳，只保留"显示页面"的能力。
+// CEF 的 App / Client / Handler：只保留"显示一个页面"的能力。
 
 #include <string>
 
-#include "app_options.h"
+#include "common/cef_shell/shell_options.h"
 #include "include/cef_app.h"
 #include "include/cef_client.h"
 #include "include/cef_context_menu_handler.h"
@@ -19,7 +19,7 @@
 
 class MainWindow;
 
-// main.cpp 用来在退出时收掉窗口对象
+// 退出时收掉窗口对象
 MainWindow* GetMainWindow();
 void DestroyMainWindow();
 
@@ -34,49 +34,59 @@ class ClientHandler : public CefClient,
                       public CefDragHandler,
                       public CefDownloadHandler {
  public:
-  ClientHandler(MainWindow* window, const AppOptions& options);
+  ClientHandler(MainWindow* window, const ShellOptions& options);
 
   // CefClient
   CefRefPtr<CefLifeSpanHandler> GetLifeSpanHandler() override { return this; }
   CefRefPtr<CefDisplayHandler> GetDisplayHandler() override { return this; }
-  CefRefPtr<CefContextMenuHandler> GetContextMenuHandler() override { return this; }
+  CefRefPtr<CefContextMenuHandler> GetContextMenuHandler() override {
+    return this;
+  }
   CefRefPtr<CefKeyboardHandler> GetKeyboardHandler() override { return this; }
   CefRefPtr<CefRequestHandler> GetRequestHandler() override { return this; }
   CefRefPtr<CefJSDialogHandler> GetJSDialogHandler() override { return this; }
-  CefRefPtr<CefPermissionHandler> GetPermissionHandler() override { return this; }
+  CefRefPtr<CefPermissionHandler> GetPermissionHandler() override {
+    return this;
+  }
   CefRefPtr<CefDragHandler> GetDragHandler() override { return this; }
   CefRefPtr<CefDownloadHandler> GetDownloadHandler() override { return this; }
 
   // CefLifeSpanHandler
-  bool OnBeforePopup(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
-                     const CefString& target_url, const CefString& target_frame_name,
-                     CefLifeSpanHandler::WindowOpenDisposition target_disposition,
-                     bool user_gesture, const CefPopupFeatures& popupFeatures,
-                     CefWindowInfo& windowInfo, CefRefPtr<CefClient>& client,
-                     CefBrowserSettings& settings, CefRefPtr<CefDictionaryValue>& extra_info,
-                     bool* no_javascript_access) override;
+  bool OnBeforePopup(
+      CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
+      const CefString& target_url, const CefString& target_frame_name,
+      CefLifeSpanHandler::WindowOpenDisposition target_disposition,
+      bool user_gesture, const CefPopupFeatures& popupFeatures,
+      CefWindowInfo& windowInfo, CefRefPtr<CefClient>& client,
+      CefBrowserSettings& settings, CefRefPtr<CefDictionaryValue>& extra_info,
+      bool* no_javascript_access) override;
   void OnAfterCreated(CefRefPtr<CefBrowser> browser) override;
   bool DoClose(CefRefPtr<CefBrowser> browser) override;
   void OnBeforeClose(CefRefPtr<CefBrowser> browser) override;
 
   // CefDisplayHandler：标题固定，不跟随页面
-  void OnTitleChange(CefRefPtr<CefBrowser> browser, const CefString& title) override {}
+  void OnTitleChange(CefRefPtr<CefBrowser> browser,
+                     const CefString& title) override {}
 
   // CefContextMenuHandler：清空菜单（刷新/另存为/检查都在里面）
-  void OnBeforeContextMenu(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
+  void OnBeforeContextMenu(CefRefPtr<CefBrowser> browser,
+                           CefRefPtr<CefFrame> frame,
                            CefRefPtr<CefContextMenuParams> params,
                            CefRefPtr<CefMenuModel> model) override;
 
   // CefKeyboardHandler：拦截浏览器快捷键
   bool OnPreKeyEvent(CefRefPtr<CefBrowser> browser, const CefKeyEvent& event,
-                     CefEventHandle os_event, bool* is_keyboard_shortcut) override;
+                     CefEventHandle os_event,
+                     bool* is_keyboard_shortcut) override;
 
   // CefRequestHandler：只放行本机页面
   bool OnBeforeBrowse(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
                       CefRefPtr<CefRequest> request, bool user_gesture,
                       bool is_redirect) override;
-  bool OnCertificateError(CefRefPtr<CefBrowser> browser, cef_errorcode_t cert_error,
-                          const CefString& request_url, CefRefPtr<CefSSLInfo> ssl_info,
+  bool OnCertificateError(CefRefPtr<CefBrowser> browser,
+                          cef_errorcode_t cert_error,
+                          const CefString& request_url,
+                          CefRefPtr<CefSSLInfo> ssl_info,
                           CefRefPtr<CefCallback> callback) override;
   void OnRenderProcessTerminated(CefRefPtr<CefBrowser> browser,
                                  TerminationStatus status) override;
@@ -89,16 +99,17 @@ class ClientHandler : public CefClient,
                   bool& suppress_message) override;
 
   // CefPermissionHandler：一律拒绝
-  bool OnShowPermissionPrompt(CefRefPtr<CefBrowser> browser, uint64_t prompt_id,
-                              const CefString& requesting_origin,
-                              uint32_t requested_permissions,
-                              CefRefPtr<CefPermissionPromptCallback> callback) override;
+  bool OnShowPermissionPrompt(
+      CefRefPtr<CefBrowser> browser, uint64_t prompt_id,
+      const CefString& requesting_origin, uint32_t requested_permissions,
+      CefRefPtr<CefPermissionPromptCallback> callback) override;
 
   // CefDragHandler：禁止把文件拖进窗口
-  bool OnDragEnter(CefRefPtr<CefBrowser> browser, CefRefPtr<CefDragData> drag_data,
+  bool OnDragEnter(CefRefPtr<CefBrowser> browser,
+                   CefRefPtr<CefDragData> drag_data,
                    DragOperationsMask mask) override;
 
-  // CefDownloadHandler：CSV 导出落到固定目录
+  // CefDownloadHandler：下载落到指定目录
   void OnBeforeDownload(CefRefPtr<CefBrowser> browser,
                         CefRefPtr<CefDownloadItem> download_item,
                         const CefString& suggested_name,
@@ -109,24 +120,29 @@ class ClientHandler : public CefClient,
 
  private:
   MainWindow* window_;
-  AppOptions options_;
+  ShellOptions options_;
 
   IMPLEMENT_REFCOUNTING(ClientHandler);
   DISALLOW_COPY_AND_ASSIGN(ClientHandler);
 };
 
-// 进程级 App：负责在上下文初始化后开窗口
+// 进程级 App：上下文初始化后开窗口
 class ClientApp : public CefApp, public CefBrowserProcessHandler {
  public:
-  explicit ClientApp(const AppOptions& options) : options_(options) {}
+  explicit ClientApp(const ShellOptions& options) : options_(options) {}
 
-  CefRefPtr<CefBrowserProcessHandler> GetBrowserProcessHandler() override { return this; }
-  void OnBeforeCommandLineProcessing(const CefString& process_type,
-                                     CefRefPtr<CefCommandLine> command_line) override;
+  CefRefPtr<CefBrowserProcessHandler> GetBrowserProcessHandler() override {
+    return this;
+  }
+  void OnBeforeCommandLineProcessing(
+      const CefString& process_type,
+      CefRefPtr<CefCommandLine> command_line) override;
   void OnContextInitialized() override;
 
  private:
-  AppOptions options_;
+  ShellOptions options_;
   IMPLEMENT_REFCOUNTING(ClientApp);
   DISALLOW_COPY_AND_ASSIGN(ClientApp);
 };
+
+#endif  // SRC_COMMON_CEF_SHELL_CLIENT_H_

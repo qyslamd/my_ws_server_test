@@ -1,5 +1,5 @@
-#ifndef APPS_COMMON_LOG_H_
-#define APPS_COMMON_LOG_H_
+#ifndef SRC_COMMON_LOG_LOG_H_
+#define SRC_COMMON_LOG_LOG_H_
 
 #include <string>
 
@@ -23,4 +23,4 @@ void Error(const std::string& msg);
 
 }  // namespace app_log
 
-#endif  // APPS_COMMON_LOG_H_
+#endif  // SRC_COMMON_LOG_LOG_H_

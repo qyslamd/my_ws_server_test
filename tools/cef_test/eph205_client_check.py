@@ -1,4 +1,4 @@
-"""验证 EPH205 桌面客户端（build-client\\EPH205.exe --devtools）。
+"""验证 EPH205 桌面客户端（build/ninja-x64-release/EPH205.exe --devtools）。
 
 检查：
   1. 窗口/页面加载、标题
@@ -26,7 +26,7 @@ CHROMEDRIVER = r"D:\trae_workspace\qt5-cef5414.120-base-env\chromedriver_win32\c
 ROOT = r"D:\trae_workspace\cef109_ws_base_env"
 OUT = os.path.join(ROOT, "temp", "client")
 CSV_PATH = os.path.join(ROOT, "temp", "eph205_items.csv")
-EXPORTS = os.path.join(ROOT, "build-client", "exports")
+EXPORTS = os.path.join(ROOT, "build", "ninja-x64-release", "exports")
 
 CSV = """序号,P,N,线制,量程,下限,上限,测量
 1,1,2,二线,0,90,110,1

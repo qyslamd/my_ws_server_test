@@ -1,42 +1,38 @@
-#include "main_window.h"
+#include "common/cef_shell/main_window.h"
 
-#include "client.h"
-#include "common/log.h"
+#include "common/cef_shell/client.h"
+#include "common/log/log.h"
 #include "include/cef_app.h"
 #include "include/cef_browser.h"
 
-namespace {
-
-const wchar_t kClassName[] = L"EPH205MainWindow";
-const wchar_t kTitle[] = L"EP-H205 综合测试系统";
-
-}  // namespace
-
-MainWindow::MainWindow(const AppOptions& options) : options_(options) {}
+MainWindow::MainWindow(const ShellOptions& options) : options_(options) {}
 
 MainWindow::~MainWindow() = default;
 
 bool MainWindow::Create(HINSTANCE instance) {
   instance_ = instance;
 
+  const std::wstring class_name = CefString(options_.window_class).ToWString();
+  const std::wstring title = CefString(options_.title).ToWString();
+
   WNDCLASSEXW wc = {sizeof(wc)};
   wc.lpfnWndProc = &MainWindow::WndProc;
   wc.hInstance = instance;
-  wc.lpszClassName = kClassName;
+  wc.lpszClassName = class_name.c_str();
   wc.hCursor = LoadCursorW(nullptr, IDC_ARROW);
   wc.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
   wc.hIcon = LoadIconW(nullptr, IDI_APPLICATION);
   wc.hIconSm = wc.hIcon;
   RegisterClassExW(&wc);
 
-  hwnd_ = CreateWindowExW(0, kClassName, kTitle, WS_OVERLAPPEDWINDOW,
-                          CW_USEDEFAULT, CW_USEDEFAULT, 1280, 800, nullptr,
-                          nullptr, instance, this);
+  hwnd_ = CreateWindowExW(0, class_name.c_str(), title.c_str(),
+                          WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT,
+                          1280, 800, nullptr, nullptr, instance, this);
   if (hwnd_ == nullptr) {
     return false;
   }
   // 显式再设一次：创建期间的 WM_SETTEXT 依赖默认处理，这里兜底
-  SetWindowTextW(hwnd_, kTitle);
+  SetWindowTextW(hwnd_, title.c_str());
 
   ShowWindow(hwnd_, SW_SHOW);
   UpdateWindow(hwnd_);
@@ -50,10 +46,8 @@ bool MainWindow::Create(HINSTANCE instance) {
   settings.background_color = CefColorSetARGB(255, 245, 246, 250);
 
   client_ = new ClientHandler(this, options_);
-  const std::string url =
-      "http://127.0.0.1:" + std::to_string(options_.port) + "/eph205/";
-  CefBrowserHost::CreateBrowser(info, client_.get(), url, settings, nullptr,
-                                nullptr);
+  CefBrowserHost::CreateBrowser(info, client_.get(), options_.url, settings,
+                                nullptr, nullptr);
   return true;
 }
 

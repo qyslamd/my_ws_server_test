@@ -5,7 +5,7 @@
 # ============================================================
 set(MONGOOSE_DIR "${CMAKE_SOURCE_DIR}/3rdparty/mongoose-7.23")
 
-# mongoose 静态库通常已由 apps/mongoose_cpp 定义;加上守卫,
+# mongoose 静态库通常已由 src/examples/mongoose_cpp 定义;加上守卫,
 # 本目录单独拷出去配置时也能自给自足
 if(NOT TARGET mongoose)
   add_library(mongoose STATIC "${MONGOOSE_DIR}/mongoose.c")

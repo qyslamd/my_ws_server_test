@@ -1,30 +1,32 @@
-// EPH205 桌面客户端：一个 Win32 窗口 + 内嵌 CEF，页面来自本进程里的服务端。
+// EPH205 桌面客户端：进程组装。
 //
-// 进程结构：
-//   UI 线程      CEF 消息循环 + 窗口
-//   server 线程  v1 通讯层（HTTP/WS）
-//   其余线程     由业务模块自己管理（串口、仿真）
-//
-// 关窗顺序：CloseBrowser → OnBeforeClose → CefQuitMessageLoop →
-//           server->Stop() → join → CefShutdown
+// 窗口与浏览器行为都在 cef_shell 库里。这里只做三件事：
+//   1. CEF 子进程分流（多进程共用同一个 exe）
+//   2. 起进程内的 v1 服务端，把地址交给外壳
+//   3. 单实例、关窗后的收尾
 
+// clang-format off
 #include <windows.h>
 #include <shellapi.h>
+
+// clang-format on
 
 #include <memory>
 #include <string>
 #include <thread>
-#include <vector>
 
 #include "base/server.h"
-#include "client.h"
-#include "common/log.h"
+#include "common/cef_shell/cef_shell.h"
+#include "common/log/log.h"
+#include "eph205/eph205_module.h"
 #include "include/cef_app.h"
-#include "include/cef_command_line.h"
-#include "main_window.h"
-#include "modules/eph205/eph205_module.h"
 
 namespace {
+
+constexpr char kWindowTitle[] = "EP-H205 综合测试系统";
+// 单实例激活时按类名找窗口，改这里要同步改 kMutexName 的语义
+constexpr char kWindowClass[] = "EPH205MainWindow";
+constexpr wchar_t kMutexName[] = L"Local\\EPH205_SingleInstance";
 
 struct Options {
   int port = 8791;
@@ -36,10 +38,11 @@ std::string Narrow(const std::wstring& text) {
     return {};
   }
   const int len = WideCharToMultiByte(CP_UTF8, 0, text.c_str(),
-                                      static_cast<int>(text.size()), nullptr, 0, nullptr, nullptr);
+                                      static_cast<int>(text.size()), nullptr, 0,
+                                      nullptr, nullptr);
   std::string out(static_cast<size_t>(len), '\0');
-  WideCharToMultiByte(CP_UTF8, 0, text.c_str(), static_cast<int>(text.size()), out.data(), len,
-                      nullptr, nullptr);
+  WideCharToMultiByte(CP_UTF8, 0, text.c_str(), static_cast<int>(text.size()),
+                      out.data(), len, nullptr, nullptr);
   return out;
 }
 
@@ -51,8 +54,7 @@ std::string ExeDir() {
   return Narrow(pos == std::wstring::npos ? dir : dir.substr(0, pos));
 }
 
-// 日志写到 %TEMP%：先用宽字符接口取路径再转 UTF-8，
-// 中文用户名下不会变成乱码
+// 先用宽字符接口取路径再转 UTF-8，中文用户名下不会乱码
 std::string ClientLogPath() {
   wchar_t dir[MAX_PATH] = {};
   if (GetTempPathW(MAX_PATH, dir) == 0) {
@@ -112,7 +114,8 @@ Options ParseOptions() {
 
 // 第二个实例不再开窗口，把已经在跑的那个激活
 bool ActivateExisting() {
-  HWND existing = FindWindowW(L"EPH205MainWindow", nullptr);
+  const std::wstring cls = CefString(kWindowClass).ToWString();
+  HWND existing = FindWindowW(cls.c_str(), nullptr);
   if (existing == nullptr) {
     return false;
   }
@@ -133,13 +136,13 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int) {
 
   const Options options = ParseOptions();
 
+  // 页面与数据都相对 exe 目录找
   SetCurrentDirectoryA(ExeDir().c_str());
 
-  // 日志：%TEMP%\eph205-client.log（4 MB × 3 份轮转，同时输出到调试器）
   app_log::Init(ClientLogPath());
 
   // 串口是独占资源，只允许一个实例
-  HANDLE mutex = CreateMutexW(nullptr, TRUE, L"Local\\EPH205_SingleInstance");
+  HANDLE mutex = CreateMutexW(nullptr, TRUE, kMutexName);
   if (GetLastError() == ERROR_ALREADY_EXISTS) {
     ActivateExisting();
     return 0;
@@ -159,51 +162,39 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int) {
     }
   }
   if (!server) {
-    MessageBoxW(nullptr, L"无法在本机绑定服务端口（8791-8810 都被占用）。", L"EP-H205",
-                MB_ICONERROR | MB_OK);
+    MessageBoxW(nullptr, L"无法在本机绑定服务端口（8791-8810 都被占用）。",
+                L"EP-H205", MB_ICONERROR | MB_OK);
+    if (mutex) {
+      ReleaseMutex(mutex);
+      CloseHandle(mutex);
+    }
     return 1;
   }
 
   std::thread server_thread([&server] { server->Run(); });
 
-  AppOptions app_options;
-  app_options.port = actual_port;
-  app_options.devtools = options.devtools;
-  app_options.exports_dir = JoinPath(ExeDir(), "exports");
-  EnsureDir(app_options.exports_dir);
+  const std::string origin = "http://127.0.0.1:" + std::to_string(actual_port);
 
-  CefSettings settings;
-  settings.no_sandbox = true;
-  settings.multi_threaded_message_loop = false;
-  settings.windowless_rendering_enabled = false;
-  settings.log_severity = LOGSEVERITY_INFO;
-  settings.persist_session_cookies = false;
-  settings.remote_debugging_port = options.devtools ? 9223 : 0;
-  CefString(&settings.cache_path) = LocalAppDataDir("cef-cache");
-  CefString(&settings.log_file) = JoinPath(LocalAppDataDir("logs"), "cef.log");
-  CefString(&settings.locale) = "zh-CN";
+  ShellOptions shell;
+  shell.title = kWindowTitle;
+  shell.url = origin + "/eph205/";
+  shell.origin = origin;
+  shell.window_class = kWindowClass;
+  shell.cache_dir = LocalAppDataDir("cef-cache");
+  shell.log_file = JoinPath(LocalAppDataDir("logs"), "cef.log");
+  shell.download_dir = JoinPath(ExeDir(), "exports");
+  shell.devtools = options.devtools;
+  EnsureDir(shell.download_dir);
 
-  CefRefPtr<ClientApp> app(new ClientApp(app_options));
-  if (!CefInitialize(main_args, settings, app.get(), nullptr)) {
-    MessageBoxW(nullptr, L"CEF 初始化失败，请查看 logs\\cef.log。", L"EP-H205",
-                MB_ICONERROR | MB_OK);
-    server->Stop();
-    server_thread.join();
-    return 1;
-  }
-
-  CefRunMessageLoop();
+  const int rc = RunCefShell(shell, main_args);
 
   // 关窗 -> 浏览器关闭 -> WS 断开 -> 通讯层 SafeStop，这里再显式停一次兜底
   server->Stop();
   server_thread.join();
 
-  CefShutdown();
-  DestroyMainWindow();
-
   if (mutex) {
     ReleaseMutex(mutex);
     CloseHandle(mutex);
   }
-  return 0;
+  return rc;
 }

@@ -15,20 +15,20 @@
 
 | 部分                | 位置                      | 职责                                                                                                          |
 | ------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| **v1 通讯层**       | `apps/v1/base/`           | 通用的设备上位机框架：HTTP 接口、WebSocket 推送、会话、作业、订阅与流控。**不含任何设备代码**，换产品只换模块 |
-| **EPH205 业务模块** | `apps/v1/modules/eph205/` | 串口协议、命令、批量测量、结果判定、历史落库                                                                  |
+| **v1 通讯层**       | `src/framework/v1/base/`           | 通用的设备上位机框架：HTTP 接口、WebSocket 推送、会话、作业、订阅与流控。**不含任何设备代码**，换产品只换模块 |
+| **EPH205 业务模块** | `src/apps/eph205/` | 串口协议、命令、批量测量、结果判定、历史落库                                                                  |
 
 "**模块**"是通讯层的扩展点：业务方实现一个接口（`v1::Module`，见
-`apps/v1/base/module.h`），把它注册进通讯层，就得到一套完整的 REST + 推送
+`src/framework/v1/base/module.h`），把它注册进通讯层，就得到一套完整的 REST + 推送
 服务。通讯层自己不知道"电阻"是什么。
 
 另外三个程序是**学习与对照用的 demo**，不属于产品：
 
 | 程序                     | 用途                                                                                                             |
 | ------------------------ | ---------------------------------------------------------------------------------------------------------------- |
-| `apps/mongoose_c/`       | 单文件纯 C，演示 mongoose 的事件循环、HTTP 路由、WebSocket、定时器。想看框架本身长什么样，读这一个文件           |
-| `apps/mongoose_cpp/`     | 双通道波形 demo，早期按协议改造过的参考实现                                                                      |
-| `apps/cef_client_shell/` | 桌面客户端外壳：开窗、加载一个网址、关掉浏览器的刷新/右键/新窗口。**不知道 EPH205 是什么**，换产品只改网址和图标 |
+| `src/examples/mongoose_c/`       | 单文件纯 C，演示 mongoose 的事件循环、HTTP 路由、WebSocket、定时器。想看框架本身长什么样，读这一个文件           |
+| `src/examples/mongoose_cpp/`     | 双通道波形 demo，早期按协议改造过的参考实现                                                                      |
+| `src/apps/eph205_app/` | 桌面客户端外壳：开窗、加载一个网址、关掉浏览器的刷新/右键/新窗口。**不知道 EPH205 是什么**，换产品只改网址和图标 |
 
 ---
 
@@ -52,30 +52,34 @@
 需要 Windows + Visual Studio 2019（含 C++ 工具集）+ CMake + Ninja。
 
 ```bat
-build.bat
+build.bat                      :: x64 + release
+build.bat x64 release client   :: 连桌面客户端一起
+build.bat x64 debug            :: 调试版
 ```
 
-产物在 `build\`（Ninja 单配置）或 `build\Debug\`（Visual Studio 多配置）。
+产物在 `build/ninja-<arch>-<config>/` 的根目录：exe、`www/`、`data/` 在同一层，
+静态库进该目录下的 `lib/`。目录名由参数决定，`x64 release` 即
+`build/ninja-x64-release/`。
 
 **没有真机也能完整体验**：用 com0com 建一对虚拟串口 `COM7 ↔ COM8`，让程序
 自己跟自己通信。
 
-```bat
-cd build
-eph205_server.exe 8790
+```bash
+cd build/ninja-x64-release
+./eph205_server.exe 8790
 ```
 
 然后浏览器打开 <http://127.0.0.1:8790/eph205/>，用 `admin / admin` 登录，
 点「启动仿真」→「连接」→ 导入测试项 →「开始测试」。
 
-> **必须从 `build\` 启动。** 页面（`www/`）与数据目录（`data/eph205/`）都是
+> **必须从构建目录启动。** 页面（`www/`）与数据目录（`data/eph205/`）都是
 > 相对当前目录找的，在别处启动会 404 且数据写到别处。
 
 桌面客户端另需 CEF 二进制（约 260 MB，不入库，放到 `3rdparty/cef-109/`）：
 
 ```bat
-tools\build_client.bat
-build-client\EPH205.exe
+build.bat x64 release client
+build\ninja-x64-release\EPH205.exe
 ```
 
 ---
@@ -83,25 +87,28 @@ build-client\EPH205.exe
 ## 4. 仓库结构
 
 ```text
-apps/v1/base/                 通讯层：HTTP/WS、会话、作业、订阅与流控
-apps/v1/main.cpp              纯通讯层入口          -> v1_server.exe
-apps/v1/modules/eph205/       EPH205 业务模块
+src/framework/v1/             基础通讯框架（不含设备代码）
+  base/                       HTTP/WS、会话、作业、订阅与流控
+  main.cpp                    纯框架入口            -> v1_server.exe
+src/apps/eph205/              EPH205 产品
   protocol.*                  设备协议编解码 AA 55 CMD LEN DATA SUM8
   serial_port.*               Win32 串口读写与端口枚举
   eph205_client.*             一问一答的帧事务（阻塞，只在工作线程调用）
   simulator.*                 固件行为仿真 + 挂在另一个串口上的应答线程
   measurement_store.*         SQLite 落库与 CSV 导出
   eph205_module.*             v1::Module 实现：命令/参数/作业/流
-  main_eph205.cpp             业务实例入口          -> eph205_server.exe
-apps/v1/www/                  静态根，构建时复制到 build\www
-  index.html …                通讯层自检页（/）
-  eph205/                     产品前端（/eph205/），原生 ES module + CSS，无构建
-apps/cef_client_shell/        桌面客户端外壳        -> EPH205.exe
-apps/mongoose_c/              mongoose 纯 C 教学 demo     -> mongoose_c_demo.exe
-apps/mongoose_cpp/            mongoose 双通道波形 demo    -> mongoose_cpp_demo.exe
+  main.cpp                    产品入口               -> eph205_server.exe
+  www/                        静态根，构建时复制到构建目录的 www/
+src/apps/eph205_app/          桌面客户端（组装：进程内服务端 + 外壳）
+                              -> EPH205.exe
+src/common/cef_shell/         CEF 窗口外壳静态库（业务无关）
+src/common/log/               日志门面（spdlog 只在 .cpp 里出现）
+src/examples/mongoose_c/      mongoose 纯 C 教学 demo  -> mongoose_c_demo.exe
+src/examples/mongoose_cpp/    mongoose 双通道波形 demo -> mongoose_cpp_demo.exe
+src/tests/                    单元测试（framework/ common/ modules/）
 docs/                         文档，索引见 docs/README.md
 tools/                        构建、打包、自动化脚本
-3rdparty/                     mongoose / sqlite / nlohmann json（源码入库，版本在目录名）
+3rdparty/                     mongoose / sqlite / spdlog / googletest 等（源码入库）
 ```
 
 `3rdparty/esp-src/` 是历史遗留的第三方源码（约 8.9 万行），**不参与构建、
@@ -153,18 +160,25 @@ v1_config.json                 通讯层参数持久化（工作目录下）
    `eph205.job.progress` 推给浏览器。测完写成一条记录进 SQLite，返回记录号。
 
 设备协议本身（帧格式、命令码、状态码）见 `docs/spec/02-ws-protocol-v1.md`
-与 `apps/v1/modules/eph205/protocol.h`。
+与 `src/apps/eph205/protocol.h`。
 
 ---
 
 ## 7. 常用命令
 
 ```bat
-build.bat                                   :: 构建全部（不含客户端）
-tools\build_client.bat                      :: 构建桌面客户端（需要 CEF）
-tools\package_client.bat                    :: 打包到 dist\EPH205 + zip
-tools\build_debug.bat                       :: 调试版构建
+build.bat                                   :: x64 + release，全部目标（不含客户端）
+build.bat x64 release client                :: 连桌面客户端一起（需要 CEF）
+build.bat x64 debug                         :: 调试版
+tools\build_client.bat                      :: 上面那条的别名，留着手熟
+tools\build_debug.bat                       :: x64 debug 的别名
+tools\package_client.bat                    :: 打包：dist\EPH205 + zip
+                                            :: 装了 Inno Setup 6 时再出安装包
 ```
+
+安装包由 `tools/installer.iss` 描述（Inno Setup 6）。`package_client.bat` 检测到
+`ISCC.exe` 会自动编译，产物是 `dist\EP-H205-<版本>-x64-setup.exe`；没装就跳过，
+只留免安装版目录与 zip。
 
 自动化验证（需要先起对应驱动）：
 
@@ -180,9 +194,9 @@ python -I tools\cef_test\eph205_client_check.py :: 桌面客户端（ChromeDrive
 
 ## 8. 改动前必读（都是实际踩过的坑）
 
-1. **静态页归各自的程序，没有仓库级 `www/`。** 产品页面在 `apps/v1/www`，
+1. **静态页归各自的程序，没有仓库级 `www/`。** 产品页面在 `src/apps/eph205/www`，
    由服务端提供；demo 的页面在自己目录下。加页面时放到对应 app 里。
-2. **前端改样式只在 `apps/v1/www/eph205/assets/` 里加变量。** 组件里写死十六进制
+2. **前端改样式只在 `src/apps/eph205/www/eph205/assets/` 里加变量。** 组件里写死十六进制
    颜色会让深色主题失效；CEF 109（Chrome 109）不支持 `color-mix()`，交互态用
    预置的 rgba 变量。
 3. **页面切换靠 `.page:not(.active)`。** 页根节点挂着布局类 `.stack`，权重相同、
@@ -196,7 +210,7 @@ python -I tools\cef_test\eph205_client_check.py :: 桌面客户端（ChromeDrive
    下会乱码，严重时影响解析。`.ps1` 可以写中文，保持 UTF-8。
 8. **换行符由 `.gitattributes` 管**：除 `.bat` 是 CRLF，其余统一 LF。
 9. **`*.obj` 在 `.gitignore` 里被当成编译产物忽略**，Wavefront 模型靠
-   `!/apps/v1/www/eph205/**/*.obj` 这条例外保留。移动模型目录时记得同步改。
+   `!/src/apps/eph205/www/eph205/**/*.obj` 这条例外保留。移动模型目录时记得同步改。
 10. **CEF 客户端跑久了 ChromeDriver 截图会整个卡死**（JS 仍能执行，重启进程恢复）。
     自动化脚本要为此留退路，这不是界面 bug。
 
@@ -227,4 +241,4 @@ python -I tools\cef_test\eph205_client_check.py :: 桌面客户端（ChromeDrive
   `#pragma once`、失败走 `bool` + `std::string& err` 而不是异常。
 - 写文档禁止黑话：自造词当场定义，缩写首次出现给全称，先说问题再说方案。
 - 不要做的事：不要恢复 libwebsockets 或 `develop` 分支；不要把设备代码写进
-  `apps/v1/base/`；不要为 demo 引入新依赖。
+  `src/framework/v1/base/`；不要为 demo 引入新依赖。
