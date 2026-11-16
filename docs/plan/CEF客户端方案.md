@@ -356,7 +356,7 @@ EPH205\
   *.pak                      8 MB
   snapshot_blob.bin 等       0.5 MB
   locales\                   只留 zh-CN.pak、en-US.pak（~1 MB）
-  （运行时创建）data\        测量记录 JSONL
+  （运行时创建）data\        测量记录 SQLite（measurements.db）
   （运行时创建）logs\        cef.log、程序日志
 ```
 
@@ -462,7 +462,7 @@ P0~P2 是核心，估计 2~3 天；P3~P4 再加 1~2 天。
 
 - CEF 109 里页面的完整功能可用（登录/测量/实时读数/三维/历史），
   脚本 `tools/cef_test/eph205_cef_check.py`，结论见
-  `docs/在CEF中使用当前的205web.md`。
+  `docs/guide/在CEF中使用当前的205web.md`。
 - ChromeDriver 109 用 `debuggerAddress` 附加 cefclient 稳定；
   Selenium 4.52 自带的服务管理会卡住（所以脚本用标准库 HTTP）。
 - WebGL 2.0 走 ANGLE/D3D11 硬件路径，不需要开关。

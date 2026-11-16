@@ -1,8 +1,9 @@
-# EPH205 Web 版（本地分支）
+# EPH205 Web 版
 
-> 分支：`feature/eph205-web`，**已推送**（2026-11-12 经确认推到 origin，仓库为 public）。
+> 已于 2026-11-16 随三线归一合入 `main`（合并提交 b957457），原 `feature/eph205-web`
+> 分支已删除，`main` 是唯一主线；仓库为 public。分支历程见 git 历史。
 > 对照物：`D:\sb\eph205\workspace\eph2805-new`（Qt5 版）。
-> 底座文档：`docs/ws-protocol-v1.md`、`docs/v1-checklist.md`。
+> 底座文档：`docs/spec/ws-protocol-v1.md`、`docs/spec/v1-checklist.md`。
 
 ---
 
@@ -23,20 +24,20 @@
 ## 2. 结构
 
 ```text
-apps/v1/base/                 业务无关通讯底座（可公开）
+apps/v1/base/                 业务无关通讯底座
 apps/v1/main.cpp              纯底座入口 -> v1_server.exe
-apps/v1/modules/eph205/       EPH205 业务模块（仅本地）
+apps/v1/modules/eph205/       EPH205 业务模块
   protocol.*                  帧编解码 AA 55 CMD LEN DATA SUM8
   serial_port.*               Win32 串口 + 端口枚举
   eph205_client.*             一问一答帧事务（阻塞，仅工作线程调用）
   simulator.*                 固件行为仿真 + 挂到串口的 SimulatorLink
-  measurement_store.*         JSONL 落库 + CSV 导出
+  measurement_store.*         SQLite 落库（measurements.db）+ CSV 导出
   eph205_module.*             v1::Module 实现（命令/参数/作业/流）
   main_eph205.cpp             业务实例入口 -> eph205_server.exe
-www/v1/eph205/                前端（原生 ES module + CSS，无构建，仅本地）
+apps/eph205_client/           Win32 + CEF 109 桌面客户端 -> EPH205.exe
+www/v1/eph205/                前端（原生 ES module + CSS，无构建）
 www/v1/eph205/vendor/         three.js 与 SheetJS 的本地副本
 www/v1/eph205/help3d/         三维资产
-www/v1/eph205/                前端构建产物（gitignore）
 ```
 
 底座与业务的分界：底座把 `base/` 编成 `v1_base.lib`，业务实例自带 `main`。
@@ -178,7 +179,8 @@ Excel 用 SheetJS（`xlsx@0.20.3`，官方 CDN 版；npm 上的 0.18.5 带
 - 整帧失败 → 本帧全部测量失败（`frame_failed`）
 - 勾掉测量 → 未测（`unchecked`）
 - 其余按上下限判定；上限≤0 视为只判下限
-- 落库：`data/eph205/measurements.jsonl`，一行一条记录，明细内嵌
+- 落库：SQLite（`data/eph205/measurements.db`，WAL），两张表：记录 + 逐项明细；
+  旧版 JSONL 文件首次打开时自动导入，然后改名 `.imported` 留档
 - CSV：浏览器端下载，服务端只回文本
 
 ---
@@ -220,13 +222,16 @@ python -I tools\edge_webdriver\eph205_e2e.py :: 真实 UI：仿真→连接→�
 `eph205_e2e.py` 会在没有服务端时自己拉起一个，退出时结束。
 期望统计：7 项 → 通过 5 / 失败 1 / 未测 1，通过率 71.4%。
 
+注意：MD3 改版后 `eph205_e2e.py` 里按旧版 UI 写的少量选择器（如用 `.tag` 类找
+「管理员/操作员」标识）还没跟上，跑之前需要先更新。
+
 ---
 
 ## 9. 进度
 
 | 阶段 | 内容 | 状态 |
 |---|---|---|
-| M0 | 协议/串口/仿真/模块 + React 脚手架 + 垂直切片 | 完成 |
+| M0 | 协议/串口/仿真/模块 + 前端脚手架（初版 React，后改版为原生 HTML/CSS/JS）+ 垂直切片 | 完成 |
 | M1 | 调试页原始命令与点检、流订阅实时读数 | 完成 |
 | M2 | 三维视图（three.js 加载 help3d 的 OBJ/MTL） | 完成 |
 | M3 | Excel 导入（SheetJS） | 完成 |
@@ -256,8 +261,8 @@ stream id 1  eph205.readings  class=record
 records 块  重复的 [ts u64][len u32][payload]，payload 是一个 JSON 对象
 ```
 
-前端 `src/v1frame.ts` 解析 24 字节头与各块，`api.onStream` 分发；
-`MeasurePage` 订阅 id 1，收到后立刻发 `{type:"credit"}` 归还窗口，
+前端 `lib/api.js` 的 `parseFrame` 解析 24 字节头与各块，`api.onStream` 分发；
+`pages/measure.js` 订阅 id 1，收到后立刻发 `{type:"credit"}` 归还窗口，
 否则窗口（默认 4 MB）用完后底座会停推。
 
 调试页的「原始命令」走 `raw`：服务端除正常应答外也接受 ACK（0x80），
@@ -303,7 +308,8 @@ sim_start sim_stop sim_set sim_config sim_clear history_delete
 
 ## 14. 注意事项
 
-- 本分支不合入 `develop`（`develop` 只保留业务无关底座）。分支本身已推送。
+- 已于 2026-11-16 合入 `main` 并删除分支（合并提交 b957457）；
+  `main` 是唯一主线，不要再建长期分支。
 - 参考项目只读，不要把它整段业务代码粘进来。
 - 串口是独占资源：上一个会话没断开时，另一个进程打不开同一端口。
 - WS 断开会让底座执行 SAFE_STOP（模块 `Stop`），这是设计行为；

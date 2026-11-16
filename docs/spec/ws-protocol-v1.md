@@ -5,7 +5,7 @@
 > 业务通过注册流和命令来扩展,协议本身零业务逻辑。
 >
 > 传输:HTTP/1.1 REST(请求-响应)+ RFC 6455 WebSocket(服务端主动推送)。
-> 状态:设计稿(v1),取代 `docs/ws-protocol.md`(下方称"v0 demo 规范")。
+> 状态:设计稿(v1),取代 `docs/spec/ws-protocol.md`(下方称"v0 demo 规范")。
 
 ---
 
@@ -891,7 +891,7 @@ PUT /api/v1/params/ad0
 | 错误 | 3 段区间 | 4 段 + HTTP 映射 + retryable + detail |
 | 调试 | 私有前端 | curl / Postman / OpenAPI 可直接验证 |
 
-v0 的 `docs/ws-protocol.md` 保留作为当前 demo 实现的说明;v1 落地后,
+v0 的 `docs/spec/ws-protocol.md` 保留作为当前 demo 实现的说明;v1 落地后,
 demo 代码按 v1 重构。
 
 ---
