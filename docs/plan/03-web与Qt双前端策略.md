@@ -1,3 +1,14 @@
+---
+title: 03-web与Qt双前端策略
+aliases:
+  - 双前端策略
+tags:
+  - 技术/架构
+  - 技术/Qt
+created: 2026-11-13
+status: draft
+---
+
 # 双前端策略：Qt QWidget 与 Web 共用一套内核
 
 > 2026-11-13（v2：补全需求清单与实现路径）

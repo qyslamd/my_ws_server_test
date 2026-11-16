@@ -1,3 +1,14 @@
+---
+title: 07-automation-debugging
+aliases:
+  - 自动化调试指南
+tags:
+  - 技术/自动化
+  - 工具/EdgeDriver
+created: 2026-11-12
+status: draft
+---
+
 # 自动化调试指南
 
 > 适用于本仓库的 `v1_server` 与 `apps/v1/www` 通用状态页。

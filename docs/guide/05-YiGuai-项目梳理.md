@@ -1,3 +1,15 @@
+---
+title: 05-YiGuai-项目梳理
+aliases:
+  - YiGuai
+tags:
+  - 项目/YiGuai
+  - 技术/Qt
+  - 技术/CEF
+created: 2026-11-12
+status: draft
+---
+
 # YiGuai 项目梳理：Qt 里嵌 CEF 做得好的地方
 
 > 位置：`D:\workspace\self\works\workspace\YiGuai`

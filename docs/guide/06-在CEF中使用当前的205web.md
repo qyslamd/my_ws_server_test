@@ -1,3 +1,14 @@
+---
+title: 06-在CEF中使用当前的205web
+aliases:
+  - 在 CEF 中使用 205 web
+tags:
+  - 技术/CEF
+  - 项目/EPH205
+created: 2026-11-12
+status: draft
+---
+
 # 在本地编译的cef中使用205web试试看
 
 ## 其它信息记录

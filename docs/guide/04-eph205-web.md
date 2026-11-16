@@ -1,9 +1,20 @@
+---
+title: 04-eph205-web
+aliases:
+  - EPH205 Web 版
+tags:
+  - 项目/EPH205
+  - 技术/Web
+created: 2026-11-12
+status: draft
+---
+
 # EPH205 Web 版
 
 > 已于 2026-11-16 随三线归一合入 `main`（合并提交 b957457），原 `feature/eph205-web`
 > 分支已删除，`main` 是唯一主线；仓库为 public。分支历程见 git 历史。
 > 对照物：`D:\sb\eph205\workspace\eph2805-new`（Qt5 版）。
-> 通讯层文档：`docs/spec/ws-protocol-v1.md`、`docs/spec/v1-checklist.md`。
+> 通讯层文档：`docs/spec/02-ws-protocol-v1.md`、`docs/spec/03-v1-checklist.md`。
 
 ---
 

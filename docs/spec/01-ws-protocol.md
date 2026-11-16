@@ -1,3 +1,15 @@
+---
+title: 01-ws-protocol
+aliases:
+  - WebSocket 通信协议规范 v1.0
+  - v0 demo 规范
+tags:
+  - 技术/协议
+  - 技术/WebSocket
+created: 2026-11-09
+status: archived
+---
+
 # WebSocket 通信协议规范 v1.0
 
 > 适用:工控上位机 / CAE 前后端分离架构

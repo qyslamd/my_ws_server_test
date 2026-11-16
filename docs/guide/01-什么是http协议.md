@@ -1,7 +1,19 @@
+---
+title: 01-什么是http协议
+aliases:
+  - HTTP
+  - HTTP REST
+tags:
+  - 技术/HTTP
+  - 技术/基础
+created: 2026-11-16
+status: draft
+---
+
 # 什么是 HTTP 协议
 
 ## HTTP REST
-> [!important]
+> [!abstract]
 > **HTTP REST API 就是“用 HTTP 协议、按 REST 架构风格来暴露和操作资源”的 API**。 `REST` 本身不是协议，也不是标准，而是一组架构约束；HTTP 只是实现它最常用的协议。
 
 ### REST 的核心约束
@@ -20,26 +32,26 @@
 ### 资源、方法和状态码
 REST 把一切抽象为资源，URI 用名词标识资源，HTTP 方法表达操作意图：
 
-| 方法   | 典型语义          | 安全性 | 幂等性 |
-| ------ | ----------------- | ------ | ------ |
-| GET    | 获取资源          | 安全   | 幂等   |
-| POST   | 创建资源/触发处理 | 不安全 | 不保证 |
-| PUT    | 整体替换资源      | 不安全 | 幂等   |
-| PATCH  | 部分更新资源      | 不安全 | 不保证 |
-| DELETE | 删除资源          | 不安全 | 幂等   |
+| 方法       | 典型语义          | 安全性 | 幂等性 |
+| ---------- | ----------------- | ------ | ------ |
+| **GET**    | 获取资源          | 安全   | 幂等   |
+| **POST**   | 创建资源/触发处理 | 不安全 | 不保证 |
+| **PUT**    | 整体替换资源      | 不安全 | 幂等   |
+| **PATCH**  | 部分更新资源      | 不安全 | 不保证 |
+| **DELETE** | 删除资源          | 不安全 | 幂等   |
 
 “安全”指不改变服务器状态；“幂等”指执行多次与执行一次效果相同。
 常见状态码：
-- 200 OK
-- 201 Created
-- 204 No Content
-- 400 Bad Request
-- 401 Unauthorized
-- 403 Forbidden
-- 404 Not Found
-- 409 Conflict
-- 422 Unprocessable Entity
-- 500 Internal Server Error
+- `200` OK
+- `201` Created
+- `204` No Content
+- `400` Bad Request
+- `401` Unauthorized
+- `403` Forbidden
+- `404` Not Found
+- `409` Conflict
+- `422` Unprocessable Entity
+- `500` Internal Server Error
 
 
 ## 一个简单的例子

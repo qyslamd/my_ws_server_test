@@ -1,3 +1,13 @@
+---
+title: docs 目录索引
+aliases:
+  - docs 索引
+tags:
+  - 文档/索引
+created: 2026-11-16
+status: active
+---
+
 # docs 目录索引
 
 各目录内的文件名前缀是**阅读顺序**，不是版本号：先读 01，再读 02。
@@ -5,7 +15,7 @@
 | 位置 | 放什么 | 内容 |
 |---|---|---|
 | `spec/` | 协议规范（活文档，跟代码演进） | 旧规范背景、v1 协议正文、落地检查清单、讲人话版 |
-| `guide/` | 入门与操作指南 | HTTP/WebSocket 入门、205 web 主文档、旧项目梳理、CEF 使用、自动化调试 |
+| `guide/` | 入门与操作指南 | HTTP/WebSocket/CEF 入门、205 web 主文档、旧项目梳理、CEF 使用、自动化调试 |
 | `plan/` | 方案与储备（定稿但未实施，或设计记录） | 传输层抽象、CEF 客户端、web/Qt 双前端策略 |
 | `todo.md` | 待办 | 项目待办与设计储备 |
 
@@ -20,10 +30,11 @@ spec/
 guide/
   01-什么是http协议.md            HTTP/REST 入门：资源、方法、状态码
   02-什么是websocket协议.md       WebSocket 入门：为什么要它、怎么握手、帧怎么传
-  03-eph205-web.md              EPH205 Web 版主文档（结构/API/运行/验证）
-  04-YiGuai-项目梳理.md          旧 Qt 项目里嵌 CEF 的可复用经验
-  05-在CEF中使用当前的205web.md   CEF 109 里跑当前 web 的验证记录
-  06-automation-debugging.md    自动化调试通用指南（EdgeDriver/CEF）
+  03-什么是CEF.md                CEF 入门：多进程模型、关键接口
+  04-eph205-web.md              EPH205 Web 版主文档（结构/API/运行/验证）
+  05-YiGuai-项目梳理.md          旧 Qt 项目里嵌 CEF 的可复用经验
+  06-在CEF中使用当前的205web.md   CEF 109 里跑当前 web 的验证记录
+  07-automation-debugging.md    自动化调试通用指南（EdgeDriver/CEF）
 plan/
   01-v1-传输层抽象方案.md         协议逻辑与通讯库解耦（定稿暂不实施）
   02-CEF客户端方案.md            Win32 + CEF 109 桌面客户端设计

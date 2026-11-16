@@ -210,8 +210,8 @@ python -I tools\cef_test\eph205_client_check.py :: 桌面客户端（ChromeDrive
 | ------------------------------------------------- | --------------------------------------- |
 | 设备协议、帧格式、命令码、错误码                  | `docs/spec/02-ws-protocol-v1.md`        |
 | 协议落地到什么程度、还差什么                      | `docs/spec/03-v1-checklist.md`          |
-| 怎么跑、前端结构、API 清单                        | `docs/guide/03-eph205-web.md`           |
-| 自动化调试怎么搭                                  | `docs/guide/06-automation-debugging.md` |
+| 怎么跑、前端结构、API 清单                        | `docs/guide/04-eph205-web.md`           |
+| 自动化调试怎么搭                                  | `docs/guide/07-automation-debugging.md` |
 | 以后要做的方案（Qt 前端、传输层抽象、CEF 客户端） | `docs/plan/`                            |
 | 待办                                              | `docs/todo.md`                          |
 

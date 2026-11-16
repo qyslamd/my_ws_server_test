@@ -1,3 +1,13 @@
+---
+title: 项目待办
+aliases:
+  - TODO
+tags:
+  - 文档/待办
+created: 2026-11-10
+status: active
+---
+
 # TODO
 
 > 项目待办与设计储备。当前代码刻意保持"易于理解的 demo"形态,
