@@ -267,9 +267,8 @@ void SimulatorLink::Loop() {
     rx_buffer_.insert(rx_buffer_.end(), chunk, chunk + got);
     for (;;) {
       Frame frame;
-      const ParseOutcome outcome =
-          ParseFrame(rx_buffer_.data(), static_cast<int>(rx_buffer_.size()),
-                     &frame);
+      const ParseOutcome outcome = ParseFrame(
+          rx_buffer_.data(), static_cast<int>(rx_buffer_.size()), &frame);
       if (outcome.consumed > 0) {
         rx_buffer_.erase(rx_buffer_.begin(),
                          rx_buffer_.begin() + outcome.consumed);
@@ -328,8 +327,8 @@ void SimulatorLink::HandleFrame(const Frame& frame) {
         SendAck(Status::kFrameError);
         return;
       }
-      const Reading reading =
-          sim_.SimulateOne(ReadU16Le(&frame.data[0]), ReadU16Le(&frame.data[2]));
+      const Reading reading = sim_.SimulateOne(ReadU16Le(&frame.data[0]),
+                                               ReadU16Le(&frame.data[2]));
       std::uint8_t data[13] = {};
       data[0] = static_cast<std::uint8_t>(reading.status);
       WriteFloatLe(reading.ohms, &data[1]);

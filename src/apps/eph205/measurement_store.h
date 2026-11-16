@@ -11,10 +11,9 @@
 
 #include <cstdint>
 #include <mutex>
+#include <nlohmann/json.hpp>
 #include <string>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 struct sqlite3;
 

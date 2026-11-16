@@ -25,7 +25,7 @@
 #include "mongoose.h"
 
 /* 监听地址。端口避开 mongoose_cpp_demo 的 8765,两者可同时跑。 */
-static const char *s_listen_url = "http://127.0.0.1:8766";
+static const char* s_listen_url = "http://127.0.0.1:8766";
 
 /* 已运行的秒数,由定时器累加,/api/uptime 读它返回。 */
 static int s_uptime_seconds = 0;
@@ -35,7 +35,7 @@ static int s_uptime_seconds = 0;
  * 演示"最小页面直接当字符串发出去"的做法:学习阶段不必为 demo 配 www 目录。
  * 页面里统一用单引号,免得在 C 字符串里转义双引号。
  * ------------------------------------------------------------------------- */
-static const char *s_index_html =
+static const char* s_index_html =
     "<!DOCTYPE html>\n"
     "<html><head><meta charset='utf-8'>"
     "<title>mongoose_c demo</title></head>\n"
@@ -43,7 +43,8 @@ static const char *s_index_html =
     "<h3>mongoose 纯 C demo</h3>\n"
     "<p>状态: <span id='st'>未连接</span></p>\n"
     "<button id='c'>连接</button> <button id='d' disabled>断开</button>\n"
-    "<p><input id='msg' value='hello'> <button id='s' disabled>发送</button></p>\n"
+    "<p><input id='msg' value='hello'> <button id='s' "
+    "disabled>发送</button></p>\n"
     "<pre id='log'></pre>\n"
     "<script>\n"
     "var ws = null;\n"
@@ -59,7 +60,7 @@ static const char *s_index_html =
     "    document.getElementById('s').disabled = false;\n"
     "    document.getElementById('d').disabled = false;\n"
     "  };\n"
-    "  ws.onmessage = function (e) { log(e.data); };\n"  /* 回显和广播都走这里 */
+    "  ws.onmessage = function (e) { log(e.data); };\n" /* 回显和广播都走这里 */
     "  ws.onclose = function () {\n"
     "    set('已断开');\n"
     "    document.getElementById('s').disabled = true;\n"
@@ -70,7 +71,7 @@ static const char *s_index_html =
     "document.getElementById('s').onclick = function () {\n"
     "  var v = document.getElementById('msg').value;\n"
     "  ws.send(v);\n"
-    "  log('我发了: ' + v);\n"  /* 服务端会回 'echo: ' + v */
+    "  log('我发了: ' + v);\n" /* 服务端会回 'echo: ' + v */
     "};\n"
     "</script></body></html>\n";
 
@@ -80,17 +81,18 @@ static const char *s_index_html =
  * mongoose 没有内置"广播"概念:所谓广播就是自己遍历 mgr->conns 链表,
  * 对每个 is_websocket 的连接 mg_ws_send 一遍。连接对象全在这个单链表里。
  * ------------------------------------------------------------------------- */
-static void broadcast(struct mg_mgr *mgr, const char *text) {
-  struct mg_connection *c;
+static void broadcast(struct mg_mgr* mgr, const char* text) {
+  struct mg_connection* c;
   for (c = mgr->conns; c != NULL; c = c->next) {
-    if (!c->is_websocket) continue; /* 跳过监听 socket、HTTP 连接 */
+    if (!c->is_websocket)
+      continue; /* 跳过监听 socket、HTTP 连接 */
     mg_ws_printf(c, WEBSOCKET_OP_TEXT, "%s", text);
   }
 }
 
 /* 定时器回调:mg_timer_add 每 2 秒调一次。 */
-static void timer_fn(void *arg) {
-  struct mg_mgr *mgr = (struct mg_mgr *) arg;
+static void timer_fn(void* arg) {
+  struct mg_mgr* mgr = (struct mg_mgr*)arg;
   char buf[64];
 
   s_uptime_seconds += 2;
@@ -115,9 +117,9 @@ static void timer_fn(void *arg) {
  * 传,而是用 c->fn_data(继承自 mg_http_listen 时给的值)或 c->data[32]
  * 小缓冲。本 demo 无状态,两个都不用。
  * ------------------------------------------------------------------------- */
-static void fn(struct mg_connection *c, int ev, void *ev_data) {
+static void fn(struct mg_connection* c, int ev, void* ev_data) {
   if (ev == MG_EV_HTTP_MSG) {
-    struct mg_http_message *hm = (struct mg_http_message *) ev_data;
+    struct mg_http_message* hm = (struct mg_http_message*)ev_data;
 
     if (mg_match(hm->uri, mg_str("/api/uptime"), NULL)) {
       /* 最简单的 REST:直接回一段 JSON。 */
@@ -128,14 +130,14 @@ static void fn(struct mg_connection *c, int ev, void *ev_data) {
       mg_ws_upgrade(c, hm, NULL);
     } else {
       /* 其余路径一律回内嵌页。真实项目在这里换成 mg_http_serve_dir。 */
-      mg_http_reply(c, 200, "Content-Type: text/html; charset=utf-8\r\n",
-                    "%s", s_index_html);
+      mg_http_reply(c, 200, "Content-Type: text/html; charset=utf-8\r\n", "%s",
+                    s_index_html);
     }
   } else if (ev == MG_EV_WS_MSG) {
-    struct mg_ws_message *wm = (struct mg_ws_message *) ev_data;
+    struct mg_ws_message* wm = (struct mg_ws_message*)ev_data;
 
     /* 回显:把收到的文本加个前缀发回去,页面日志立刻能看到。 */
-    mg_ws_printf(c, WEBSOCKET_OP_TEXT, "echo: %.*s", (int) wm->data.len,
+    mg_ws_printf(c, WEBSOCKET_OP_TEXT, "echo: %.*s", (int)wm->data.len,
                  wm->data.buf);
   } else if (ev == MG_EV_WS_OPEN) {
     /* 新 WS 连接:打开十六进制转储,便于观察握手后的帧格式。 */
@@ -143,7 +145,8 @@ static void fn(struct mg_connection *c, int ev, void *ev_data) {
     mg_ws_send(c, "welcome", 7, WEBSOCKET_OP_TEXT);
   } else if (ev == MG_EV_CLOSE) {
     /* 这里适合做连接清理。本 demo 无状态,只打一行日志。 */
-    if (c->is_websocket) printf("ws 连接关闭\n");
+    if (c->is_websocket)
+      printf("ws 连接关闭\n");
   }
 
   /* 其它事件(MG_EV_OPEN/ACCEPT/POLL...)不关心就静默通过,

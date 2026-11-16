@@ -1,10 +1,9 @@
 #pragma once
 
 #include <cstdint>
+#include <nlohmann/json.hpp>
 #include <string>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 namespace v1 {
 
@@ -29,8 +28,7 @@ class Module {
   virtual nlohmann::json State() const = 0;
   virtual nlohmann::json Describe() const = 0;
 
-  virtual bool Command(const std::string& action,
-                       const nlohmann::json& payload,
+  virtual bool Command(const std::string& action, const nlohmann::json& payload,
                        nlohmann::json& result, std::string& err) = 0;
 
   // 通讯层是否要求 admin 角色才能执行该命令。
@@ -38,20 +36,18 @@ class Module {
   virtual bool AdminOnly(const std::string& /*action*/) const { return false; }
 
   virtual nlohmann::json GetParams(const std::string& scope) const = 0;
-  virtual bool SetParams(const std::string& scope,
-                         const nlohmann::json& values, bool replace,
-                         nlohmann::json& applied, std::string& err) = 0;
+  virtual bool SetParams(const std::string& scope, const nlohmann::json& values,
+                         bool replace, nlohmann::json& applied,
+                         std::string& err) = 0;
   virtual bool OwnsParamScope(const std::string& scope) const = 0;
 
   // 生产一帧：data/records 二选一，meta 为该流的描述。
   virtual bool Produce(uint32_t stream_id, uint64_t now_ms,
                        std::vector<uint8_t>& data,
-                       std::vector<uint8_t>& records,
-                       std::string& meta) = 0;
+                       std::vector<uint8_t>& records, std::string& meta) = 0;
 
-  virtual bool StartJob(const std::string& type,
-                        const nlohmann::json& input, std::string& job_id,
-                        std::string& err) = 0;
+  virtual bool StartJob(const std::string& type, const nlohmann::json& input,
+                        std::string& job_id, std::string& err) = 0;
   virtual bool JobTick(uint64_t now_ms, std::string& event_name,
                        nlohmann::json& payload) = 0;
   virtual nlohmann::json JobStatus(const std::string& id) const = 0;

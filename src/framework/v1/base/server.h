@@ -66,8 +66,7 @@ class V1Server {
   void Ping();
 
   Module* FindModule(const std::string& ns) const;
-  Module* FindStreamModule(uint32_t stream_id,
-                           const StreamInfo** stream) const;
+  Module* FindStreamModule(uint32_t stream_id, const StreamInfo** stream) const;
   Module* FindParamModule(const std::string& scope) const;
   Module* FindJobModule(const std::string& job_id) const;
 

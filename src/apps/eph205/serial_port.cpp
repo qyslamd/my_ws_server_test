@@ -46,9 +46,8 @@ bool SerialPort::Open(const std::string& port_name, int baud_rate,
   Close();
   // COM10 以上必须用 \\.\ 前缀，统一都加上
   const std::string path = "\\\\.\\" + port_name;
-  HANDLE h = CreateFileA(path.c_str(), GENERIC_READ | GENERIC_WRITE, 0,
-                         nullptr, OPEN_EXISTING,
-                         FILE_ATTRIBUTE_NORMAL, nullptr);
+  HANDLE h = CreateFileA(path.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr,
+                         OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
   if (h == INVALID_HANDLE_VALUE) {
     err = "打开 " + port_name + " 失败: " + WinErrorText(GetLastError());
     return false;
@@ -118,14 +117,14 @@ bool SerialPort::Write(const std::uint8_t* data, int len, std::string& err) {
     return true;
   }
   DWORD written = 0;
-  if (!WriteFile(static_cast<HANDLE>(handle_), data,
-                 static_cast<DWORD>(len), &written, nullptr)) {
+  if (!WriteFile(static_cast<HANDLE>(handle_), data, static_cast<DWORD>(len),
+                 &written, nullptr)) {
     err = "串口写失败: " + WinErrorText(GetLastError());
     return false;
   }
   if (static_cast<int>(written) != len) {
-    err = "串口写不完整: " + std::to_string(written) + "/" +
-          std::to_string(len);
+    err =
+        "串口写不完整: " + std::to_string(written) + "/" + std::to_string(len);
     return false;
   }
   return true;
@@ -139,8 +138,8 @@ int SerialPort::Read(std::uint8_t* out, int len, int timeout_ms) {
       std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
   for (;;) {
     DWORD got = 0;
-    if (!ReadFile(static_cast<HANDLE>(handle_), out,
-                  static_cast<DWORD>(len), &got, nullptr)) {
+    if (!ReadFile(static_cast<HANDLE>(handle_), out, static_cast<DWORD>(len),
+                  &got, nullptr)) {
       return -1;
     }
     if (got > 0) {
@@ -161,8 +160,8 @@ void SerialPort::FlushInput() {
 
 std::vector<std::string> SerialPort::ListPorts() {
   std::vector<std::string> ports;
-  const auto values = winreg::EnumValues(
-      HKEY_LOCAL_MACHINE, "HARDWARE\\DEVICEMAP\\SERIALCOMM");
+  const auto values =
+      winreg::EnumValues(HKEY_LOCAL_MACHINE, "HARDWARE\\DEVICEMAP\\SERIALCOMM");
   for (const auto& kv : values) {
     if (!kv.second.empty()) {
       ports.push_back(kv.second);

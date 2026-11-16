@@ -9,12 +9,11 @@
 #include <atomic>
 #include <cstdint>
 #include <mutex>
+#include <nlohmann/json.hpp>
 #include <string>
 #include <thread>
 #include <unordered_map>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 #include "protocol.h"
 #include "serial_port.h"

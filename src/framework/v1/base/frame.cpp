@@ -18,8 +18,8 @@ void PutU64(std::vector<uint8_t>& out, uint64_t v) {
   }
 }
 
-void AppendBlock(std::vector<uint8_t>& out, uint8_t type,
-                 const uint8_t* data, uint32_t len) {
+void AppendBlock(std::vector<uint8_t>& out, uint8_t type, const uint8_t* data,
+                 uint32_t len) {
   out.push_back(type);
   PutU32(out, len);
   if (len > 0) {
@@ -43,11 +43,11 @@ std::vector<uint8_t> BuildFrame(uint32_t stream_id, uint32_t seq,
                                 const std::vector<uint8_t>& records) {
   std::vector<uint8_t> body;
   if (!data.empty()) {
-    AppendBlock(body, kBlockData, data.data(), static_cast<uint32_t>(data.size()));
+    AppendBlock(body, kBlockData, data.data(),
+                static_cast<uint32_t>(data.size()));
   }
   if (with_meta && !meta.empty()) {
-    AppendBlock(body, kBlockMeta,
-                reinterpret_cast<const uint8_t*>(meta.data()),
+    AppendBlock(body, kBlockMeta, reinterpret_cast<const uint8_t*>(meta.data()),
                 static_cast<uint32_t>(meta.size()));
   }
   if (!records.empty()) {

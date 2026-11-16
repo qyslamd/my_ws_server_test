@@ -23,8 +23,8 @@ enum BlockType : uint8_t {
 
 // 24-byte little-endian header:
 // magic, version, opcode, flags, streamId(u32), seq(u32), ts(u64), bodyLen(u32)
-std::vector<uint8_t> BuildFrame(uint32_t stream_id, uint32_t seq, uint64_t ts_ns,
-                                uint8_t opcode, bool with_meta,
+std::vector<uint8_t> BuildFrame(uint32_t stream_id, uint32_t seq,
+                                uint64_t ts_ns, uint8_t opcode, bool with_meta,
                                 const std::string& meta,
                                 const std::vector<uint8_t>& data,
                                 const std::vector<uint8_t>& records);

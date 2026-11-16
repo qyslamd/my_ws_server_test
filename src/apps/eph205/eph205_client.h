@@ -70,8 +70,7 @@ class Eph205Client {
  private:
   bool Transact(Cmd request, const std::uint8_t* data, int len, int timeout_ms,
                 int retries, Frame* response, DeviceError* error,
-                const std::atomic<bool>* cancel,
-                std::uint8_t alt_response = 0);
+                const std::atomic<bool>* cancel, std::uint8_t alt_response = 0);
   bool WriteFrame(Cmd request, const std::uint8_t* data, int len,
                   DeviceError* error);
   bool AwaitResponse(Cmd request, int timeout_ms, Frame* response,

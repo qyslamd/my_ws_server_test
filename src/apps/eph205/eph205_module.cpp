@@ -183,8 +183,7 @@ Eph205Module::Eph205Module() {
   streams_.push_back(
       {kReadingStreamId, "eph205.readings", "record",
        nlohmann::json{{"format", "jsonl"},
-                      {"fields",
-                       {"seq", "p", "n", "ohms", "status", "result"}},
+                      {"fields", {"seq", "p", "n", "ohms", "status", "result"}},
                       {"rate", "on_progress"}}
            .dump()});
 
@@ -424,11 +423,28 @@ nlohmann::json Eph205Module::Describe() const {
           {"paramsScope", "eph205"},
           {"streams", streams_.size()},
           {"commands",
-           {"ports", "connect", "disconnect", "device_info", "set_mode",
-            "set_param", "get_params", "measure", "reset", "frame_log",
-            "raw", "check_point", "sim_start", "sim_stop", "sim_set",
-            "sim_config", "sim_clear", "history_list", "history_get",
-            "history_delete", "history_export", "history_export_many"}},
+           {"ports",
+            "connect",
+            "disconnect",
+            "device_info",
+            "set_mode",
+            "set_param",
+            "get_params",
+            "measure",
+            "reset",
+            "frame_log",
+            "raw",
+            "check_point",
+            "sim_start",
+            "sim_stop",
+            "sim_set",
+            "sim_config",
+            "sim_clear",
+            "history_list",
+            "history_get",
+            "history_delete",
+            "history_export",
+            "history_export_many"}},
           {"jobs", {"measure_run"}}};
 }
 
@@ -468,9 +484,9 @@ bool Eph205Module::SetParams(const std::string& scope,
 // 连接、测量、查历史、导出这些操作员日常要用的不拦。
 bool Eph205Module::AdminOnly(const std::string& action) const {
   static const std::set<std::string> kAdmin = {
-      "raw",      "check_point", "reset",       "set_param",
-      "set_mode", "frame_log",   "sim_start",   "sim_stop",
-      "sim_set",  "sim_config",  "sim_clear",   "history_delete"};
+      "raw",      "check_point", "reset",     "set_param",
+      "set_mode", "frame_log",   "sim_start", "sim_stop",
+      "sim_set",  "sim_config",  "sim_clear", "history_delete"};
   return kAdmin.count(action) > 0;
 }
 
@@ -483,10 +499,10 @@ bool Eph205Module::Command(const std::string& action,
     job_running = job_ && !job_->finished.load();
   }
   static const std::set<std::string> kDeviceCommands = {
-      "connect",     "disconnect", "device_info", "set_mode",
-      "set_param",   "get_params", "measure",     "reset",
-      "frame_log",   "sim_start",  "sim_stop",    "sim_set",
-      "sim_config",  "sim_clear",  "raw",         "check_point"};
+      "connect",    "disconnect", "device_info", "set_mode",
+      "set_param",  "get_params", "measure",     "reset",
+      "frame_log",  "sim_start",  "sim_stop",    "sim_set",
+      "sim_config", "sim_clear",  "raw",         "check_point"};
   if (job_running && kDeviceCommands.count(action) > 0) {
     err = "测量进行中，请先停止";
     return false;
@@ -653,16 +669,16 @@ bool Eph205Module::HandleCommand(const std::string& action,
             e = de.message.empty() ? std::string(IoText(de.io)) : de.message;
             return false;
           }
-          out = {{"p", p},
-                 {"n", n},
-                 {"status", static_cast<int>(reading.status)},
-                 {"statusText", StatusText(reading.status)},
-                 {"ohms",
-                  std::isnan(reading.ohms) ? nlohmann::json()
-                                           : nlohmann::json(reading.ohms)},
-                 {"rawAdc", reading.raw_adc},
-                 {"differentialUv", reading.differential_uv},
-                 {"at", NowMs()}};
+          out = {
+              {"p", p},
+              {"n", n},
+              {"status", static_cast<int>(reading.status)},
+              {"statusText", StatusText(reading.status)},
+              {"ohms", std::isnan(reading.ohms) ? nlohmann::json()
+                                                : nlohmann::json(reading.ohms)},
+              {"rawAdc", reading.raw_adc},
+              {"differentialUv", reading.differential_uv},
+              {"at", NowMs()}};
           return true;
         },
         result, err, kDeviceCommandTimeoutMs);
@@ -891,9 +907,7 @@ bool Eph205Module::HandleCommand(const std::string& action,
       err = e.empty() ? "导出失败" : e;
       return false;
     }
-    result = {{"count", ids.size()},
-              {"csv", csv},
-              {"bytes", csv.size()}};
+    result = {{"count", ids.size()}, {"csv", csv}, {"bytes", csv.size()}};
     return true;
   }
 
@@ -1016,10 +1030,10 @@ void Eph205Module::DoMeasureRun(const std::shared_ptr<Job>& job,
     row["n"] = static_cast<int>(NumValue(item, "n", 0));
     row["wire"] = static_cast<int>(NumValue(item, "wire", 0));
     row["range"] = static_cast<int>(NumValue(item, "range", 0));
-    row["minOhms"] = HasNumValue(item, "minOhms") ? item["minOhms"]
-                                                  : nlohmann::json();
-    row["maxOhms"] = HasNumValue(item, "maxOhms") ? item["maxOhms"]
-                                                  : nlohmann::json();
+    row["minOhms"] =
+        HasNumValue(item, "minOhms") ? item["minOhms"] : nlohmann::json();
+    row["maxOhms"] =
+        HasNumValue(item, "maxOhms") ? item["maxOhms"] : nlohmann::json();
     row["measure"] = BoolValue(item, "measure", true);
     row["value"] = value;
     row["result"] = result;
@@ -1085,9 +1099,8 @@ void Eph205Module::DoMeasureRun(const std::shared_ptr<Job>& job,
           static_cast<int>(NumValue(next, "range", 0)) != range) {
         break;
       }
-      pairs.push_back(PointPair{
-          static_cast<int>(NumValue(next, "p", 0)),
-          static_cast<int>(NumValue(next, "n", 0))});
+      pairs.push_back(PointPair{static_cast<int>(NumValue(next, "p", 0)),
+                                static_cast<int>(NumValue(next, "n", 0))});
       indices.push_back(j);
       ++j;
     }
@@ -1133,20 +1146,21 @@ void Eph205Module::DoMeasureRun(const std::shared_ptr<Job>& job,
         const double min_ohms = NumValue(item_k, "minOhms", 0.0);
         const double max_ohms = NumValue(item_k, "maxOhms", 0.0);
         const bool has_max = HasNumValue(item_k, "maxOhms") && max_ohms > 0.0;
-        const bool pass = (!has_min || value >= min_ohms) &&
-                          (!has_max || value <= max_ohms);
+        const bool pass =
+            (!has_min || value >= min_ohms) && (!has_max || value <= max_ohms);
         mark(indices[k], item_k, pass ? "pass" : "fail", "", value);
         if (pass) {
           ++passed;
         } else {
           ++failed;
         }
-        PushReading({{"seq", static_cast<int>(NumValue(item_k, "seq", indices[k] + 1))},
-                     {"p", static_cast<int>(NumValue(item_k, "p", 0))},
-                     {"n", static_cast<int>(NumValue(item_k, "n", 0))},
-                     {"ohms", value},
-                     {"status", 0},
-                     {"result", pass ? "pass" : "fail"}});
+        PushReading(
+            {{"seq", static_cast<int>(NumValue(item_k, "seq", indices[k] + 1))},
+             {"p", static_cast<int>(NumValue(item_k, "p", 0))},
+             {"n", static_cast<int>(NumValue(item_k, "n", 0))},
+             {"ohms", value},
+             {"status", 0},
+             {"result", pass ? "pass" : "fail"}});
       }
     }
     done += static_cast<int>(indices.size());
@@ -1154,14 +1168,13 @@ void Eph205Module::DoMeasureRun(const std::shared_ptr<Job>& job,
     job->passed.store(passed);
     job->failed.store(failed);
     job->measure_failed.store(measure_failed);
-    PushEvent("eph205.job.progress",
-              {{"jobId", job->id},
-               {"state", "running"},
-               {"done", done},
-               {"total", total},
-               {"passed", passed},
-               {"failed", failed},
-               {"measureFailed", measure_failed}});
+    PushEvent("eph205.job.progress", {{"jobId", job->id},
+                                      {"state", "running"},
+                                      {"done", done},
+                                      {"total", total},
+                                      {"passed", passed},
+                                      {"failed", failed},
+                                      {"measureFailed", measure_failed}});
     i = j;
   }
 
@@ -1181,35 +1194,32 @@ void Eph205Module::DoMeasureRun(const std::shared_ptr<Job>& job,
   const double pass_rate =
       total > 0 ? static_cast<double>(passed) * 100.0 / total : 0.0;
 
-  nlohmann::json summary = {
-      {"status", cancelled ? "cancelled" : "completed"},
-      {"total", total},
-      {"passed", passed},
-      {"failed", failed},
-      {"measureFailed", measure_failed},
-      {"notMeasured", not_measured},
-      {"passRate", pass_rate},
+  nlohmann::json summary = {{"status", cancelled ? "cancelled" : "completed"},
+                            {"total", total},
+                            {"passed", passed},
+                            {"failed", failed},
+                            {"measureFailed", measure_failed},
+                            {"notMeasured", not_measured},
+                            {"passRate", pass_rate},
+                            {"startedAt", started_ms},
+                            {"finishedAt", finished_ms},
+                            {"durationMs", finished_ms - started_ms}};
+
+  nlohmann::json record = {
+      {"createdAt", finished_ms},
       {"startedAt", started_ms},
       {"finishedAt", finished_ms},
-      {"durationMs", finished_ms - started_ms}};
-
-  nlohmann::json record = {{"createdAt", finished_ms},
-                           {"startedAt", started_ms},
-                           {"finishedAt", finished_ms},
-                           {"product", product},
-                           {"operator", operator_name},
-                           {"status", summary["status"]},
-                           {"deviceSource", device_source},
-                           {"port", ParamString("port", "")},
-                           {"firmware",
-                            last_info_.value("firmware", std::string())},
-                           {"config",
-                            {{"items", total},
-                             {"settleDelay",
-                              static_cast<int>(
-                                  NumValue(input, "settleDelay", 0))}}},
-                           {"summary", summary},
-                           {"items", out_items}};
+      {"product", product},
+      {"operator", operator_name},
+      {"status", summary["status"]},
+      {"deviceSource", device_source},
+      {"port", ParamString("port", "")},
+      {"firmware", last_info_.value("firmware", std::string())},
+      {"config",
+       {{"items", total},
+        {"settleDelay", static_cast<int>(NumValue(input, "settleDelay", 0))}}},
+      {"summary", summary},
+      {"items", out_items}};
 
   std::string store_err;
   const std::int64_t record_id = store_.Append(record, store_err);
@@ -1244,16 +1254,17 @@ nlohmann::json Eph205Module::JobStatus(const std::string& id) const {
   if (!job_ || job_->id != id) {
     return nlohmann::json();
   }
-  return {{"jobId", job_->id},
-          {"type", job_->type},
-          {"state", job_->finished.load() ? job_->state : std::string("running")},
-          {"done", job_->done.load()},
-          {"total", job_->total.load()},
-          {"passed", job_->passed.load()},
-          {"failed", job_->failed.load()},
-          {"measureFailed", job_->measure_failed.load()},
-          {"recordId", job_->record_id},
-          {"summary", job_->summary}};
+  return {
+      {"jobId", job_->id},
+      {"type", job_->type},
+      {"state", job_->finished.load() ? job_->state : std::string("running")},
+      {"done", job_->done.load()},
+      {"total", job_->total.load()},
+      {"passed", job_->passed.load()},
+      {"failed", job_->failed.load()},
+      {"measureFailed", job_->measure_failed.load()},
+      {"recordId", job_->record_id},
+      {"summary", job_->summary}};
 }
 
 bool Eph205Module::CancelJob(const std::string& id, std::string& err,

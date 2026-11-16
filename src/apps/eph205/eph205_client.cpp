@@ -81,7 +81,8 @@ void Eph205Client::Close() {
 }
 
 int Eph205Client::SingleTimeoutMs() const {
-  const int deadline = settle_delay_units_ * 10 + kPerPointMs + kTimeoutMarginMs;
+  const int deadline =
+      settle_delay_units_ * 10 + kPerPointMs + kTimeoutMarginMs;
   return std::max(kMinSingleTimeoutMs, deadline);
 }
 
@@ -115,8 +116,8 @@ bool Eph205Client::WriteFrame(Cmd request, const std::uint8_t* data, int len,
   }
   std::string err;
   if (!port_.Write(buffer, size, err)) {
-    SetError(error, IoError::kDisconnected,
-             static_cast<std::uint8_t>(request), err);
+    SetError(error, IoError::kDisconnected, static_cast<std::uint8_t>(request),
+             err);
     return false;
   }
   AppendLog("TX " + std::string(CmdText(request)) + " | " +
@@ -129,8 +130,8 @@ bool Eph205Client::AwaitResponse(Cmd request, int timeout_ms, Frame* response,
                                  const std::atomic<bool>* cancel) {
   expected_response_ = static_cast<std::uint8_t>(ExpectedResponse(request));
   const std::uint8_t alt = alt_response_;
-  const auto deadline = std::chrono::steady_clock::now() +
-                        std::chrono::milliseconds(timeout_ms);
+  const auto deadline =
+      std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
 
   for (;;) {
     if (cancel != nullptr && cancel->load()) {
@@ -139,8 +140,7 @@ bool Eph205Client::AwaitResponse(Cmd request, int timeout_ms, Frame* response,
       return false;
     }
     std::uint8_t chunk[512];
-    const bool no_more =
-        std::chrono::steady_clock::now() >= deadline;
+    const bool no_more = std::chrono::steady_clock::now() >= deadline;
     const int got = port_.Read(chunk, sizeof(chunk), no_more ? 0 : 5);
     if (got < 0) {
       SetError(error, IoError::kDisconnected,
@@ -153,9 +153,8 @@ bool Eph205Client::AwaitResponse(Cmd request, int timeout_ms, Frame* response,
 
     for (;;) {
       Frame frame;
-      const ParseOutcome outcome =
-          ParseFrame(rx_buffer_.data(), static_cast<int>(rx_buffer_.size()),
-                     &frame);
+      const ParseOutcome outcome = ParseFrame(
+          rx_buffer_.data(), static_cast<int>(rx_buffer_.size()), &frame);
       if (outcome.consumed > 0) {
         rx_buffer_.erase(rx_buffer_.begin(),
                          rx_buffer_.begin() + outcome.consumed);
@@ -189,8 +188,7 @@ bool Eph205Client::AwaitResponse(Cmd request, int timeout_ms, Frame* response,
 
 bool Eph205Client::Transact(Cmd request, const std::uint8_t* data, int len,
                             int timeout_ms, int retries, Frame* response,
-                            DeviceError* error,
-                            const std::atomic<bool>* cancel,
+                            DeviceError* error, const std::atomic<bool>* cancel,
                             std::uint8_t alt_response) {
   alt_response_ = alt_response;
   if (!port_.is_open()) {
@@ -236,7 +234,8 @@ bool Eph205Client::QueryDeviceInfo(DeviceInfo* info, DeviceError* error) {
   }
   const Status status = static_cast<Status>(frame.data[0]);
   if (status != Status::kOk) {
-    SetStatusError(error, status, static_cast<std::uint8_t>(Cmd::kGetDeviceInfo));
+    SetStatusError(error, status,
+                   static_cast<std::uint8_t>(Cmd::kGetDeviceInfo));
     return false;
   }
   if (info != nullptr) {
@@ -379,7 +378,8 @@ bool Eph205Client::MeasureBatch(std::uint32_t start_seq,
                                 const std::vector<PointPair>& pairs,
                                 BatchResult* result, DeviceError* error,
                                 const std::atomic<bool>* cancel) {
-  if (pairs.empty() || pairs.size() > static_cast<std::size_t>(kMaxBatchGroups)) {
+  if (pairs.empty() ||
+      pairs.size() > static_cast<std::size_t>(kMaxBatchGroups)) {
     SetError(error, IoError::kFrameError,
              static_cast<std::uint8_t>(Cmd::kMeasureBatch),
              "批组数 " + std::to_string(pairs.size()) + " 越界");
@@ -428,8 +428,8 @@ bool Eph205Client::MeasureBatch(std::uint32_t start_seq,
   if (echoed != start_seq) {
     SetError(error, IoError::kSeqMismatch,
              static_cast<std::uint8_t>(Cmd::kMeasureBatch),
-             "起始序号 " + std::to_string(echoed) + " != " +
-                 std::to_string(start_seq));
+             "起始序号 " + std::to_string(echoed) +
+                 " != " + std::to_string(start_seq));
     if (result != nullptr) {
       result->frame_ok = false;
     }
@@ -438,8 +438,8 @@ bool Eph205Client::MeasureBatch(std::uint32_t start_seq,
   if (groups != static_cast<int>(pairs.size())) {
     SetError(error, IoError::kBadResponse,
              static_cast<std::uint8_t>(Cmd::kMeasureBatch),
-             "组数 " + std::to_string(groups) + " != " +
-                 std::to_string(pairs.size()));
+             "组数 " + std::to_string(groups) +
+                 " != " + std::to_string(pairs.size()));
     if (result != nullptr) {
       result->frame_ok = false;
     }

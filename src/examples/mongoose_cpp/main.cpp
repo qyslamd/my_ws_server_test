@@ -3,7 +3,7 @@
 #include "mongoose_server.h"
 
 int main() {
-    Mongoose_Server server("http://127.0.0.1:8765");
-    server.run();
-    return 0;
+  Mongoose_Server server("http://127.0.0.1:8765");
+  server.run();
+  return 0;
 }

@@ -4,12 +4,12 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <nlohmann/json.hpp>
 #include <string>
 #include <vector>
 
 #include "base/frame.h"
 #include "mongoose.h"
-#include <nlohmann/json.hpp>
 
 using json = nlohmann::json;
 
@@ -260,15 +260,15 @@ void V1Server::OnHttp(mg_connection* c, mg_http_message* hm) {
     const std::string& r = parts.size() > 2 ? parts[2] : "";
 
     if (r == "capabilities" && method == "GET") {
-      ReplyJson(c, 200,
-                {{"proto", 1},
-                 {"server", "v1-base/0.1"},
-                 {"caps", {"credit", "frag", "jobs", "blobs"}},
-                 {"limits",
-                  {{"max_data_frame", 8388608},
-                   {"default_window", 1048576},
-                   {"buffer_bytes", {{"sample", 4194304},
-                                     {"record", 8388608}}}}}});
+      ReplyJson(
+          c, 200,
+          {{"proto", 1},
+           {"server", "v1-base/0.1"},
+           {"caps", {"credit", "frag", "jobs", "blobs"}},
+           {"limits",
+            {{"max_data_frame", 8388608},
+             {"default_window", 1048576},
+             {"buffer_bytes", {{"sample", 4194304}, {"record", 8388608}}}}}});
       return;
     }
     if (r == "time" && method == "GET") {
@@ -276,8 +276,8 @@ void V1Server::OnHttp(mg_connection* c, mg_http_message* hm) {
       return;
     }
     if (r == "health" && method == "GET") {
-      ReplyJson(c, 200, {{"ok", true},
-                         {"uptimeMs", mg_millis() - started_ms_}});
+      ReplyJson(c, 200,
+                {{"ok", true}, {"uptimeMs", mg_millis() - started_ms_}});
       return;
     }
 
@@ -301,9 +301,8 @@ void V1Server::OnHttp(mg_connection* c, mg_http_message* hm) {
         s->user = user;
         s->role = user == "admin" ? "admin" : "operator";
         s->token = "tok-" + std::to_string(++token_counter_);
-        ReplyJson(c, 200, {{"token", s->token},
-                           {"user", s->user},
-                           {"role", s->role}});
+        ReplyJson(c, 200,
+                  {{"token", s->token}, {"user", s->user}, {"role", s->role}});
       } else {
         ReplyError(c, 401, 4001, "invalid credentials");
       }
@@ -311,9 +310,10 @@ void V1Server::OnHttp(mg_connection* c, mg_http_message* hm) {
     }
     if (r == "auth" && parts.size() == 4 && method == "GET" &&
         parts[3] == "me") {
-      ReplyJson(c, 200, {{"user", s->user},
-                         {"role", s->role},
-                         {"authenticated", !s->user.empty()}});
+      ReplyJson(c, 200,
+                {{"user", s->user},
+                 {"role", s->role},
+                 {"authenticated", !s->user.empty()}});
       return;
     }
     if (r == "auth" && parts.size() == 4 && method == "POST" &&
@@ -329,9 +329,10 @@ void V1Server::OnHttp(mg_connection* c, mg_http_message* hm) {
       const std::string& scope = parts[3];
       if (method == "GET") {
         json values = config_.count(scope) ? config_[scope] : json::object();
-        ReplyJson(c, 200, {{"scope", scope},
-                           {"revision", config_rev_[scope]},
-                           {"values", values}});
+        ReplyJson(c, 200,
+                  {{"scope", scope},
+                   {"revision", config_rev_[scope]},
+                   {"values", values}});
         return;
       }
       if (method == "PUT" || method == "PATCH") {
@@ -348,9 +349,10 @@ void V1Server::OnHttp(mg_connection* c, mg_http_message* hm) {
         }
         ++config_rev_[scope];
         SaveConfig();
-        ReplyJson(c, 200, {{"scope", scope},
-                           {"revision", config_rev_[scope]},
-                           {"values", config_[scope]}});
+        ReplyJson(c, 200,
+                  {{"scope", scope},
+                   {"revision", config_rev_[scope]},
+                   {"values", config_[scope]}});
         return;
       }
     }
@@ -366,9 +368,8 @@ void V1Server::OnHttp(mg_connection* c, mg_http_message* hm) {
         ct = "application/octet-stream";
       }
       const std::string id = AddBlob(ct, data);
-      ReplyJson(c, 201, {{"blobId", id},
-                         {"size", data.size()},
-                         {"contentType", ct}});
+      ReplyJson(c, 201,
+                {{"blobId", id}, {"size", data.size()}, {"contentType", ct}});
       return;
     }
     if (r == "blobs" && parts.size() == 3 && method == "GET") {
@@ -465,8 +466,7 @@ void V1Server::OnHttp(mg_connection* c, mg_http_message* hm) {
         const StreamInfo* desc = nullptr;
         Module* owner = FindStreamModule(id, &desc);
         if (owner == nullptr || desc == nullptr) {
-          ReplyError(c, 404, 2002, "stream not found",
-                     {{"streamId", id}});
+          ReplyError(c, 404, 2002, "stream not found", {{"streamId", id}});
           return;
         }
         Subscription sub;
@@ -502,9 +502,10 @@ void V1Server::OnHttp(mg_connection* c, mg_http_message* hm) {
         return;
       }
       if (method == "GET") {
-        ReplyJson(c, 200, {{"scope", scope},
-                           {"revision", revisions_[scope]},
-                           {"values", m->GetParams(scope)}});
+        ReplyJson(c, 200,
+                  {{"scope", scope},
+                   {"revision", revisions_[scope]},
+                   {"values", m->GetParams(scope)}});
         return;
       }
       if (method == "PUT" || method == "PATCH") {
@@ -521,9 +522,10 @@ void V1Server::OnHttp(mg_connection* c, mg_http_message* hm) {
           return;
         }
         ++revisions_[scope];
-        ReplyJson(c, 200, {{"scope", scope},
-                           {"revision", revisions_[scope]},
-                           {"values", applied}});
+        ReplyJson(c, 200,
+                  {{"scope", scope},
+                   {"revision", revisions_[scope]},
+                   {"values", applied}});
         return;
       }
     }
@@ -620,8 +622,7 @@ void V1Server::OnHttp(mg_connection* c, mg_http_message* hm) {
       for (const auto& kv : modules_) {
         module_logs[kv.first] = kv.second->Logs();
       }
-      ReplyJson(c, 200, {{"server", server_logs},
-                         {"modules", module_logs}});
+      ReplyJson(c, 200, {{"server", server_logs}, {"modules", module_logs}});
       return;
     }
     ReplyError(c, 404, 2004, "unknown endpoint");
@@ -661,8 +662,11 @@ void V1Server::SendEvent(Session* s, const std::string& name,
   if (s == nullptr || s->ws == nullptr || !s->ws->is_websocket) {
     return;
   }
-  json ev = {{"v", 1}, {"type", "evt"}, {"name", name},
-             {"payload", payload}, {"ts", mg_millis()}};
+  json ev = {{"v", 1},
+             {"type", "evt"},
+             {"name", name},
+             {"payload", payload},
+             {"ts", mg_millis()}};
   const std::string text = ev.dump();
   mg_ws_send(s->ws, text.c_str(), text.size(), WEBSOCKET_OP_TEXT);
 }
@@ -685,9 +689,9 @@ void V1Server::OnWsOpen(mg_connection* c) {
       running.push_back(kv.first);
     }
   }
-  SendEvent(&it->second, "core.state",
-            {{"state", running.empty() ? "idle" : "running"},
-             {"modules", running}});
+  SendEvent(
+      &it->second, "core.state",
+      {{"state", running.empty() ? "idle" : "running"}, {"modules", running}});
 }
 
 void V1Server::OnWsMsg(mg_connection* c, mg_ws_message* wm) {
@@ -703,8 +707,8 @@ void V1Server::OnWsMsg(mg_connection* c, mg_ws_message* wm) {
   if (wm->data.len == 0 || wm->data.buf[0] != '{') {
     return;
   }
-  json msg = json::parse(std::string(wm->data.buf, wm->data.len), nullptr,
-                         false);
+  json msg =
+      json::parse(std::string(wm->data.buf, wm->data.len), nullptr, false);
   if (msg.is_discarded() || msg.value("type", "") != "credit") {
     return;
   }
@@ -727,9 +731,9 @@ void V1Server::OnWsMsg(mg_connection* c, mg_ws_message* wm) {
     const uint64_t bytes = bytes_it->get<uint64_t>();
     auto sub = it->second.subs.find(id);
     if (sub != it->second.subs.end()) {
-      sub->second.outstanding =
-          bytes >= sub->second.outstanding ? 0
-                                           : sub->second.outstanding - bytes;
+      sub->second.outstanding = bytes >= sub->second.outstanding
+                                    ? 0
+                                    : sub->second.outstanding - bytes;
     }
   }
 }
@@ -783,10 +787,10 @@ void V1Server::Tick() {
       const std::string text = event_payload.dump(2);
       std::vector<uint8_t> bytes(text.begin(), text.end());
       const std::string blob = AddBlob("application/json", bytes);
-      event_payload["artifacts"] = json::array(
-          {{{"blobId", blob},
-            {"name", "job-result.json"},
-            {"contentType", "application/json"}}});
+      event_payload["artifacts"] =
+          json::array({{{"blobId", blob},
+                        {"name", "job-result.json"},
+                        {"contentType", "application/json"}}});
       job_owner_[event_payload.value("jobId", "")] = job.second;
     }
     Session* active = ActiveSession();
@@ -819,9 +823,9 @@ void V1Server::Tick() {
         if (sub.window == 0) {
           Log("stream " + std::to_string(id) + " window=0，只订阅不推数据");
         } else {
-          Log("stream " + std::to_string(id) + " 额度耗尽，暂停推送（window=" +
-              std::to_string(sub.window) + "，未归还=" +
-              std::to_string(sub.outstanding) + "）");
+          Log("stream " + std::to_string(id) +
+              " 额度耗尽，暂停推送（window=" + std::to_string(sub.window) +
+              "，未归还=" + std::to_string(sub.outstanding) + "）");
         }
       }
       continue;
@@ -852,9 +856,8 @@ void V1Server::Tick() {
     const bool with_meta = !sub.meta_sent;
     const uint32_t seq = ++seqs_[id];
     const auto frame =
-        BuildFrame(id, seq, now * 1000000ULL,
-                   with_meta ? kSnapshot : kDelta, with_meta, meta, data,
-                   records);
+        BuildFrame(id, seq, now * 1000000ULL, with_meta ? kSnapshot : kDelta,
+                   with_meta, meta, data, records);
     mg_ws_send(s->ws, frame.data(), frame.size(), WEBSOCKET_OP_BINARY);
     sub.meta_sent = true;
     sub.outstanding += payload;

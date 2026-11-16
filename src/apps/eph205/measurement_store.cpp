@@ -170,8 +170,8 @@ bool MeasurementStore::Open(const std::string& path, std::string& err) {
       std::filesystem::create_directories(parent, ec);
     }
     if (sqlite3_open_v2(path.c_str(), &db_,
-                        SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nullptr) !=
-        SQLITE_OK) {
+                        SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE,
+                        nullptr) != SQLITE_OK) {
       err = db_ != nullptr ? sqlite3_errmsg(db_) : "无法打开数据库";
       if (db_ != nullptr) {
         sqlite3_close(db_);
@@ -301,9 +301,12 @@ std::int64_t MeasurementStore::Append(const nlohmann::json& record,
     return -1;
   }
   sqlite3_stmt* h = header.get();
-  sqlite3_bind_int64(h, 1, static_cast<sqlite3_int64>(Num(record, "createdAt", 0)));
-  sqlite3_bind_int64(h, 2, static_cast<sqlite3_int64>(Num(record, "startedAt", 0)));
-  sqlite3_bind_int64(h, 3, static_cast<sqlite3_int64>(Num(record, "finishedAt", 0)));
+  sqlite3_bind_int64(h, 1,
+                     static_cast<sqlite3_int64>(Num(record, "createdAt", 0)));
+  sqlite3_bind_int64(h, 2,
+                     static_cast<sqlite3_int64>(Num(record, "startedAt", 0)));
+  sqlite3_bind_int64(h, 3,
+                     static_cast<sqlite3_int64>(Num(record, "finishedAt", 0)));
   BindText(h, 4, Str(product, "model"));
   BindText(h, 5, Str(product, "code"));
   BindText(h, 6, Str(product, "figure"));
@@ -436,9 +439,11 @@ bool MeasurementStore::QueryRecord(std::int64_t id, nlohmann::json& out) const {
     row["maxOhms"] = ColumnNumOrNull(s, 6);
     row["measure"] = sqlite3_column_int(s, 7) != 0;
     row["value"] = ColumnNumOrNull(s, 8);
-    const char* result = reinterpret_cast<const char*>(sqlite3_column_text(s, 9));
+    const char* result =
+        reinterpret_cast<const char*>(sqlite3_column_text(s, 9));
     row["result"] = result != nullptr ? result : "";
-    const char* reason = reinterpret_cast<const char*>(sqlite3_column_text(s, 10));
+    const char* reason =
+        reinterpret_cast<const char*>(sqlite3_column_text(s, 10));
     row["reason"] = reason != nullptr ? reason : "";
     rows.push_back(std::move(row));
   }
@@ -463,7 +468,8 @@ bool MeasurementStore::Remove(std::int64_t id, std::string& err) {
   if (!Exec("BEGIN IMMEDIATE", err)) {
     return false;
   }
-  Stmt del_items(db_, "DELETE FROM measurement_items WHERE measurement_id = ?1");
+  Stmt del_items(db_,
+                 "DELETE FROM measurement_items WHERE measurement_id = ?1");
   Stmt del_header(db_, "DELETE FROM measurements WHERE id = ?1");
   if (!del_items.ok() || !del_header.ok()) {
     Exec("ROLLBACK", err);
@@ -501,11 +507,16 @@ std::vector<nlohmann::json> MeasurementStore::List(const Filter& filter,
   }
 
   std::string where = " WHERE 1=1";
-  if (!filter.model.empty()) where += " AND model LIKE ?";
-  if (!filter.operator_name.empty()) where += " AND operator = ?";
-  if (!filter.status.empty()) where += " AND status = ?";
-  if (filter.from_ms > 0) where += " AND created_at >= ?";
-  if (filter.to_ms > 0) where += " AND created_at <= ?";
+  if (!filter.model.empty())
+    where += " AND model LIKE ?";
+  if (!filter.operator_name.empty())
+    where += " AND operator = ?";
+  if (!filter.status.empty())
+    where += " AND status = ?";
+  if (filter.from_ms > 0)
+    where += " AND created_at >= ?";
+  if (filter.to_ms > 0)
+    where += " AND created_at <= ?";
 
   const std::string count_sql = "SELECT COUNT(*) FROM measurements" + where;
   Stmt count_stmt(db_, count_sql.c_str());
@@ -538,8 +549,8 @@ std::vector<nlohmann::json> MeasurementStore::List(const Filter& filter,
   const std::string sql =
       "SELECT id, created_at, model, code, operator, status, device_source,"
       " total, passed, failed, measure_failed, not_measured, pass_rate"
-      " FROM measurements" + where +
-      " ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?";
+      " FROM measurements" +
+      where + " ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?";
   Stmt stmt(db_, sql.c_str());
   if (!stmt.ok()) {
     return page;
@@ -570,7 +581,8 @@ std::vector<nlohmann::json> MeasurementStore::List(const Filter& filter,
     }
     sqlite3_stmt* s = stmt.get();
     const auto text = [s](int col) -> std::string {
-      const char* value = reinterpret_cast<const char*>(sqlite3_column_text(s, col));
+      const char* value =
+          reinterpret_cast<const char*>(sqlite3_column_text(s, col));
       return value != nullptr ? value : "";
     };
     nlohmann::json row;
@@ -591,7 +603,8 @@ std::vector<nlohmann::json> MeasurementStore::List(const Filter& filter,
   return page;
 }
 
-std::string MeasurementStore::ExportCsv(std::int64_t id, std::string& err) const {
+std::string MeasurementStore::ExportCsv(std::int64_t id,
+                                        std::string& err) const {
   nlohmann::json record;
   {
     std::lock_guard<std::mutex> lock(mu_);
@@ -626,9 +639,11 @@ std::string MeasurementStore::ExportCsv(std::int64_t id, std::string& err) const
         << static_cast<int>(Num(item, "n", 0)) << ','
         << (Num(item, "wire", 0) == 0 ? "二线" : "四线") << ','
         << static_cast<int>(Num(item, "range", 0)) << ','
-        << NumberText(item.contains("minOhms") ? item["minOhms"] : nlohmann::json())
+        << NumberText(item.contains("minOhms") ? item["minOhms"]
+                                               : nlohmann::json())
         << ','
-        << NumberText(item.contains("maxOhms") ? item["maxOhms"] : nlohmann::json())
+        << NumberText(item.contains("maxOhms") ? item["maxOhms"]
+                                               : nlohmann::json())
         << ','
         << NumberText(item.contains("value") ? item["value"] : nlohmann::json())
         << ',' << CsvCell(Str(item, "result")) << ','

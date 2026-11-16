@@ -17,11 +17,10 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <nlohmann/json.hpp>
 #include <string>
 #include <thread>
 #include <vector>
-
-#include <nlohmann/json.hpp>
 
 #include "base/module.h"
 #include "eph205_client.h"
@@ -36,7 +35,9 @@ class Eph205Module : public v1::Module {
   ~Eph205Module() override;
 
   std::string ns() const override { return "eph205"; }
-  const std::vector<v1::StreamInfo>& streams() const override { return streams_; }
+  const std::vector<v1::StreamInfo>& streams() const override {
+    return streams_;
+  }
   bool running() const override;
 
   bool Start(std::string& err) override;
@@ -56,9 +57,8 @@ class Eph205Module : public v1::Module {
     return scope == "eph205";
   }
 
-  bool Produce(uint32_t stream_id, uint64_t now_ms,
-               std::vector<uint8_t>& data, std::vector<uint8_t>& records,
-               std::string& meta) override;
+  bool Produce(uint32_t stream_id, uint64_t now_ms, std::vector<uint8_t>& data,
+               std::vector<uint8_t>& records, std::string& meta) override;
 
   bool StartJob(const std::string& type, const nlohmann::json& input,
                 std::string& job_id, std::string& err) override;

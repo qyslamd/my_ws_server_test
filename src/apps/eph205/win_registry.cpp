@@ -41,9 +41,8 @@ std::vector<std::string> EnumSubKeys(HKEY root, const char* path) {
   for (DWORD i = 0;; ++i) {
     char name[512] = {0};
     DWORD name_len = sizeof(name);
-    const LONG rc =
-        RegEnumKeyExA(key, i, name, &name_len, nullptr, nullptr, nullptr,
-                      nullptr);
+    const LONG rc = RegEnumKeyExA(key, i, name, &name_len, nullptr, nullptr,
+                                  nullptr, nullptr);
     if (rc == ERROR_NO_MORE_ITEMS) {
       break;
     }
@@ -65,9 +64,8 @@ std::string ReadString(HKEY root, const char* path, const char* name) {
   DWORD data_len = sizeof(data);
   DWORD type = 0;
   std::string out;
-  if (RegQueryValueExA(key, name, nullptr, &type,
-                       reinterpret_cast<BYTE*>(data), &data_len) ==
-          ERROR_SUCCESS &&
+  if (RegQueryValueExA(key, name, nullptr, &type, reinterpret_cast<BYTE*>(data),
+                       &data_len) == ERROR_SUCCESS &&
       (type == REG_SZ || type == REG_EXPAND_SZ)) {
     out = data;
   }
