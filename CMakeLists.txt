@@ -6,13 +6,21 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# 可执行文件统一输出到 build/ 根目录,便于从 build/ 直接启动
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+# 所有 target 的输出统一到 bin 和 lib 下
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 if(MSVC)
   # 全局按 UTF-8 解析源码:本项目源码含中文注释,
   # 且 mongoose 源码在 GBK 代码页下会产生 C4819
   add_compile_options(/utf-8)
+
+  # 统一静态运行库:/MT。CEF 的 libcef_dll_wrapper 默认就是 /MT
+  # (见 3rdparty/cef-109/cmake/cef_variables.cmake 的
+  #  CEF_RUNTIME_LIBRARY_FLAG),wrapper 编成静态库后要链进 EPH205.exe,
+  # 两边运行库不一致会报 LNK2038。所有目标(含 vendored 库)一律 /MT。
+  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()
 
 #-------------------------------------------------------------------------------
@@ -46,6 +54,7 @@ add_custom_target(copy_www ALL
 #   mongoose-7.23     HTTP/WS
 #   sqlite-3540100    SQLite amalgamation（业务落库用）
 #   googletest-1.17.0 单元测试框架（只留源码，用法见 tests/）
+#   spdlog-1.17.0     日志（只留源码，捆绑 fmt；入口是 apps/common/log.h）
 #   3rdparty/cef-109  CEF 二进制约 260 MB，不入库，见 docs/CEF客户端方案.md
 # ============================================================
 add_library(sqlite3 STATIC
@@ -64,6 +73,21 @@ if(MSVC)
   # 第三方源码不参与我们的 /W4，避免淹没自己的告警
   target_compile_options(sqlite3 PRIVATE /W0)
 endif()
+
+# ============================================================
+# spdlog：日志
+#
+# 编成静态库（不用 header-only），包含目录标成 SYSTEM，避免 /W4 下把
+# 我们自己的代码淹没在第三方头的告警里。
+# ============================================================
+set(SPDLOG_BUILD_SHARED OFF CACHE BOOL "" FORCE)
+set(SPDLOG_BUILD_EXAMPLE OFF CACHE BOOL "" FORCE)
+set(SPDLOG_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(SPDLOG_BUILD_BENCH OFF CACHE BOOL "" FORCE)
+set(SPDLOG_INSTALL OFF CACHE BOOL "" FORCE)
+set(SPDLOG_SYSTEM_INCLUDES ON CACHE BOOL "" FORCE)
+add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/spdlog-1.17.0"
+                 spdlog_build EXCLUDE_FROM_ALL)
 
 # ============================================================
 # 子目标:mongoose 版双通道 WS 服务端
