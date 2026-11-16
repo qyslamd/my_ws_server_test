@@ -1,9 +1,7 @@
 #include "main_window.h"
 
-#include <cstdio>
-#include <ctime>
-
 #include "client.h"
+#include "common/log.h"
 #include "include/cef_app.h"
 #include "include/cef_browser.h"
 
@@ -80,20 +78,8 @@ LRESULT CALLBACK MainWindow::WndProc(HWND hwnd, UINT message, WPARAM wparam,
   return self->HandleMessage(hwnd, message, wparam, lparam);
 }
 
-// 排查关窗问题用：写到 %TEMP%\eph205-client.log
-void WriteClientLog(const char* text) {
-  char dir[MAX_PATH] = {};
-  GetTempPathA(MAX_PATH, dir);
-  std::string file = std::string(dir) + "eph205-client.log";
-  FILE* fp = nullptr;
-  if (fopen_s(&fp, file.c_str(), "a") == 0 && fp) {
-    SYSTEMTIME st = {};
-    GetLocalTime(&st);
-    fprintf(fp, "%02d:%02d:%02d.%03d %s\n", st.wHour, st.wMinute, st.wSecond,
-            st.wMilliseconds, text);
-    fclose(fp);
-  }
-}
+// 排查关窗问题用：日志统一由 app_log 写 %TEMP%\eph205-client.log
+void WriteClientLog(const char* text) { app_log::Info(text); }
 
 void MainWindow::Log(const char* text) { WriteClientLog(text); }
 

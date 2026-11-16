@@ -27,6 +27,7 @@ target_include_directories(${TARGET_NAME} PRIVATE
 )
 
 target_link_libraries(${TARGET_NAME} PRIVATE
+  app_log
   eph205_module
   libcef_dll_wrapper
   "${CEF_LIB_RELEASE}"      # 只引入 Release 的 libcef.lib；Debug 版没有入库

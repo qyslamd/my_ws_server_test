@@ -27,3 +27,13 @@ if(MSVC)
   target_compile_options(test_frame PRIVATE /utf-8 /W4 /WX-)
 endif()
 add_test(NAME frame COMMAND test_frame)
+
+# ------------------------------------------------------------
+# 日志门面：级别、中文、落盘
+# ------------------------------------------------------------
+add_executable(test_log log_test.cpp)
+target_link_libraries(test_log PRIVATE app_log gtest_main)
+if(MSVC)
+  target_compile_options(test_log PRIVATE /utf-8 /W4 /WX-)
+endif()
+add_test(NAME log COMMAND test_log)

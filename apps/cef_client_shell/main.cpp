@@ -18,6 +18,7 @@
 
 #include "base/server.h"
 #include "client.h"
+#include "common/log.h"
 #include "include/cef_app.h"
 #include "include/cef_command_line.h"
 #include "main_window.h"
@@ -48,6 +49,16 @@ std::string ExeDir() {
   std::wstring dir(path);
   const size_t pos = dir.find_last_of(L"\\/");
   return Narrow(pos == std::wstring::npos ? dir : dir.substr(0, pos));
+}
+
+// 日志写到 %TEMP%：先用宽字符接口取路径再转 UTF-8，
+// 中文用户名下不会变成乱码
+std::string ClientLogPath() {
+  wchar_t dir[MAX_PATH] = {};
+  if (GetTempPathW(MAX_PATH, dir) == 0) {
+    return {};
+  }
+  return Narrow(std::wstring(dir) + L"eph205-client.log");
 }
 
 std::string JoinPath(const std::string& a, const std::string& b) {
@@ -123,6 +134,9 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int) {
   const Options options = ParseOptions();
 
   SetCurrentDirectoryA(ExeDir().c_str());
+
+  // 日志：%TEMP%\eph205-client.log（4 MB × 3 份轮转，同时输出到调试器）
+  app_log::Init(ClientLogPath());
 
   // 串口是独占资源，只允许一个实例
   HANDLE mutex = CreateMutexW(nullptr, TRUE, L"Local\\EPH205_SingleInstance");
