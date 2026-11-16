@@ -45,6 +45,7 @@ add_custom_target(copy_www ALL
 # vendored 第三方库（源码入库，版本写进目录名）
 #   mongoose-7.23     HTTP/WS
 #   sqlite-3540100    SQLite amalgamation（业务落库用）
+#   googletest-1.17.0 单元测试框架（只留源码，用法见 tests/）
 #   3rdparty/cef-109  CEF 二进制约 260 MB，不入库，见 docs/CEF客户端方案.md
 # ============================================================
 add_library(sqlite3 STATIC
@@ -78,6 +79,17 @@ add_subdirectory(apps/mongoose_c)
 # 子目标:v1 业务无关通讯层(纯 C/C++,零 Qt)
 # ============================================================
 add_subdirectory(apps/v1)
+
+# ============================================================
+# 单元测试:googletest(vendored) + ctest
+#   cmake --build build
+#   ctest --test-dir build --output-on-failure
+# ============================================================
+include(CTest)
+
+if(BUILD_TESTING)
+  add_subdirectory(tests)
+endif()
 
 # ============================================================
 # 子目标:EPH205 桌面客户端(CEF)
