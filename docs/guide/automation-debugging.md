@@ -8,15 +8,15 @@
 
 ## 1. 工具与版本
 
-| 工具 | 路径 / 版本 | 用途 |
-|---|---|---|
-| VS2019 x64 | `vcvars64.bat` | 编译 |
-| CMake + Ninja | 4.x / 1.10+ | 构建 |
-| Python | 3.12 | 自动化脚本（标准库） |
-| Edge | `C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe` | 浏览器 |
-| EdgeDriver | `3rdparty\edgedriver_win64\msedgedriver.exe` | WebDriver |
-| LLDB | `D:\Qt22\Tools\QtCreator\bin\clang\bin\lldb.exe` | C++ 调试 |
-| CDB | `C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\cdb.exe` | C++ 调试（MSVC PDB 更完整） |
+| 工具          | 路径 / 版本                                                    | 用途                        |
+| ------------- | -------------------------------------------------------------- | --------------------------- |
+| VS2019 x64    | `vcvars64.bat`                                                 | 编译                        |
+| CMake + Ninja | 4.x / 1.10+                                                    | 构建                        |
+| Python        | 3.12                                                           | 自动化脚本（标准库）        |
+| Edge          | `C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe` | 浏览器                      |
+| EdgeDriver    | `3rdparty\edgedriver_win64\msedgedriver.exe`                   | WebDriver                   |
+| LLDB          | `D:\Qt22\Tools\QtCreator\bin\clang\bin\lldb.exe`               | C++ 调试                    |
+| CDB           | `C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\cdb.exe` | C++ 调试（MSVC PDB 更完整） |
 
 版本核对：
 
@@ -54,12 +54,12 @@ tools\build_debug.bat
 
 ## 3. 端口
 
-| 端口 | 用途 |
-|---|---|
-| 8770 | 日常/默认 |
+| 端口 | 用途       |
+| ---- | ---------- |
+| 8770 | 日常/默认  |
 | 8780 | 自动化专用 |
 | 9515 | EdgeDriver |
-| 9222 | Edge CDP |
+| 9222 | Edge CDP   |
 
 v1 是 1:1 会话；自动化建议用 8780 独立服务端，避免和 8770 抢会话。
 会话占用时 HTTP 返回 `409 Conflict`，重启服务端即可清空。
@@ -122,8 +122,8 @@ python -I tools/edge_webdriver/edge_headed.py
 
 当前通用页支持：
 
-| 参数 | 作用 |
-|---|---|
+| 参数           | 作用                      |
+| -------------- | ------------------------- |
 | `?noconnect=1` | 不建立 WS，只渲染静态布局 |
 
 ---
@@ -136,7 +136,7 @@ WebDriver 不能直接点 DevTools 界面；CDP 可以程序化控制 Debugger�
 
 ```bat
 msedge.exe --remote-debugging-port=9222 ^
-  --user-data-dir=D:\trae_workspace\my_ws_server_test\temp\cdp-base-profile ^
+  --user-data-dir=D:\trae_workspace\cef109_ws_base_env\temp\cdp-base-profile ^
   --auto-open-devtools-for-tabs --no-first-run --no-proxy-server ^
   --window-size=1400,900 http://127.0.0.1:8780/
 ```
@@ -224,9 +224,9 @@ CDB 原生支持 MSVC PDB，方法名断点和局部变量完整。
 ```bat
 cd build-debug
 "C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\cdb.exe" ^
-  -y "D:\trae_workspace\my_ws_server_test\build-debug" ^
+  -y "D:\trae_workspace\cef109_ws_base_env\build-debug" ^
   -c ".reload /f v1_server.exe; bp v1_server!v1::V1Server::RegisterModule; g; k; dv; q" ^
-  "D:\trae_workspace\my_ws_server_test\build-debug\v1_server.exe" 8773
+  "D:\trae_workspace\cef109_ws_base_env\build-debug\v1_server.exe" 8773
 ```
 
 实测输出：
@@ -250,23 +250,23 @@ module = 0x...
 ### 7.2 源码行断点
 
 ```bat
-cdb -y "D:\trae_workspace\my_ws_server_test\build-debug" ^
+cdb -y "D:\trae_workspace\cef109_ws_base_env\build-debug" ^
   -c ".reload /f v1_server.exe; bp `server.cpp:114`; g; k; q" ^
-  "D:\trae_workspace\my_ws_server_test\build-debug\v1_server.exe" 8773
+  "D:\trae_workspace\cef109_ws_base_env\build-debug\v1_server.exe" 8773
 ```
 
 ### 7.3 常用命令
 
-| 命令 | 作用 |
-|---|---|
-| `bp v1_server!ns::Class::Method` | 方法断点 |
-| ``bp `server.cpp:114` `` | 源码行断点 |
-| `g` | 继续 |
-| `k` | 调用栈 |
-| `dv` | 当前帧局部变量 |
-| `p variable` | 打印变量 |
-| `t` / `p` | 单步进入 / 跳过 |
-| `q` | 退出 |
+| 命令                             | 作用            |
+| -------------------------------- | --------------- |
+| `bp v1_server!ns::Class::Method` | 方法断点        |
+| ``bp `server.cpp:114` ``         | 源码行断点      |
+| `g`                              | 继续            |
+| `k`                              | 调用栈          |
+| `dv`                             | 当前帧局部变量  |
+| `p variable`                     | 打印变量        |
+| `t` / `p`                        | 单步进入 / 跳过 |
+| `q`                              | 退出            |
 
 ### 7.4 为什么 CDB 行、LLDB 不行
 
@@ -278,16 +278,16 @@ CDB 直接读 MSVC PDB 私有符号，方法名解析完整；LLDB 的 Windows P
 
 ## 8. 故障排查
 
-| 现象 | 处理 |
-|---|---|
-| `LNK1104: 无法打开 v1_server.exe` | 旧服务端占用 exe，先停进程再构建 |
-| EdgeDriver 启动失败 | 驱动与 Edge 版本不一致，核对 `--version` |
-| `409 session busy` | 1:1 会话被占用；换 8780 或重启服务端 |
-| CDP `/json` 404 | Edge 没带 `--remote-debugging-port=9222` |
-| DevTools 没自动打开 | 加 `--auto-open-devtools-for-tabs` |
-| LLDB 方法名断点 pending | 用文件/行断点，或换 CDB |
-| CDB `bp` 无法解析 | 加 `-y` 和 `.reload /f`，方法名用模块限定 |
-| headless 截图挂起 | 用 `?noconnect=1` 只渲染布局 |
+| 现象                              | 处理                                      |
+| --------------------------------- | ----------------------------------------- |
+| `LNK1104: 无法打开 v1_server.exe` | 旧服务端占用 exe，先停进程再构建          |
+| EdgeDriver 启动失败               | 驱动与 Edge 版本不一致，核对 `--version`  |
+| `409 session busy`                | 1:1 会话被占用；换 8780 或重启服务端      |
+| CDP `/json` 404                   | Edge 没带 `--remote-debugging-port=9222`  |
+| DevTools 没自动打开               | 加 `--auto-open-devtools-for-tabs`        |
+| LLDB 方法名断点 pending           | 用文件/行断点，或换 CDB                   |
+| CDB `bp` 无法解析                 | 加 `-y` 和 `.reload /f`，方法名用模块限定 |
+| headless 截图挂起                 | 用 `?noconnect=1` 只渲染布局              |
 
 ---
 

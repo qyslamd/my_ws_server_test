@@ -98,7 +98,7 @@ server_thread.join();
 ### 4.1 放哪、怎么不入库
 
 ```text
-D:\trae_workspace\my_ws_server_test\
+D:\trae_workspace\cef109_ws_base_env\
   3rdparty\
     cef-109\                    ← 整个目录 gitignore
       cmake\FindCEF.cmake
@@ -117,17 +117,17 @@ D:\trae_workspace\my_ws_server_test\
 
 体积参考（Release 运行时，实测）：
 
-| 文件 | 大小 |
-|---|---|
-| libcef.dll | 185.9 MB |
-| icudtl.dat | 10.0 MB |
-| resources.pak | 7.2 MB |
-| libGLESv2.dll | 7.1 MB |
-| vk_swiftshader.dll | 4.7 MB |
-| d3dcompiler_47.dll | 4.7 MB |
-| chrome_elf.dll | 1.3 MB |
-| 其余（pak/snapshot/locales） | ~4 MB |
-| **合计** | **约 257 MB** |
+| 文件                         | 大小          |
+| ---------------------------- | ------------- |
+| libcef.dll                   | 185.9 MB      |
+| icudtl.dat                   | 10.0 MB       |
+| resources.pak                | 7.2 MB        |
+| libGLESv2.dll                | 7.1 MB        |
+| vk_swiftshader.dll           | 4.7 MB        |
+| d3dcompiler_47.dll           | 4.7 MB        |
+| chrome_elf.dll               | 1.3 MB        |
+| 其余（pak/snapshot/locales） | ~4 MB         |
+| **合计**                     | **约 257 MB** |
 
 ### 4.2 CMake 接入
 
@@ -175,10 +175,10 @@ add_custom_command(TARGET EPH205 POST_BUILD
 **wrapper 怎么来**：`libcef_dll_wrapper` 是 CEF 的 C++ 封装层（几十个源文件）。
 两种做法：
 
-| 做法 | 优点 | 缺点 |
-|---|---|---|
-| A. 每次编译 `libcef_dll/` 源码 | ABI 与我们的 CRT 完全一致，升级 CEF 只换目录 | 首次编译多 1~2 分钟 |
-| B. 复用你已经编好的 `libcef_dll_wrapper.lib` | 快 | CRT/编译选项必须完全一致，换机器容易踩坑 |
+| 做法                                         | 优点                                         | 缺点                                     |
+| -------------------------------------------- | -------------------------------------------- | ---------------------------------------- |
+| A. 每次编译 `libcef_dll/` 源码               | ABI 与我们的 CRT 完全一致，升级 CEF 只换目录 | 首次编译多 1~2 分钟                      |
+| B. 复用你已经编好的 `libcef_dll_wrapper.lib` | 快                                           | CRT/编译选项必须完全一致，换机器容易踩坑 |
 
 **建议 A**：在 `apps/cef_client_shell/CMakeLists.txt` 里把 `${CEF_ROOT}/libcef_dll` 下的
 `.cc` 收进一个静态库目标。源码在 3rdparty（不入库），编译规则在我们仓库里（入库）。
@@ -250,21 +250,21 @@ cefclient 把这些 handler 拆在 `tests/shared/browser/client_app_browser.cc`
 和 `tests/cefclient/browser/client_handler*.cc` 里。我们不要它的工具栏、
 地址栏、标签页，只借 handler 的骨架和下面这些开关。
 
-| Handler | 我们的实现 | 目的 |
-|---|---|---|
-| `CefLifeSpanHandler` | `OnBeforePopup` 返回 true 直接拒绝；`OnBeforeClose` 通知主窗口退出 | 客户端不开新窗口 |
-| `CefLoadHandler` | 记录加载状态；`OnLoadError` 显示本地错误页（"服务未启动，请重启程序"） | 不白屏 |
-| `CefDisplayHandler` | 忽略页面 title 变化，标题固定；忽略 favicon | 标题栏不出现 `127.0.0.1:…` |
-| `CefContextMenuHandler` | `OnBeforeContextMenu` 里 `model->Clear()` | **去掉右键菜单**（刷新/另存为/检查都在里面） |
-| `CefKeyboardHandler` | 白名单式拦截（见 §7） | 去掉刷新、缩放、打印、源码 |
-| `CefRequestHandler` | `OnBeforeBrowse` 只放行 `http://127.0.0.1:<port>`；`OnBeforeResourceLoad` 拒绝外部域名；`OnCertificateError` 拒绝；`OnRenderProcessTerminated` 自动重载一次 | 页面不能被导航走、不能外联 |
-| `CefJSDialogHandler` | `OnJSDialog` 直接返回 true（吞掉）；或转成原生 MessageBox | 不出现浏览器样式的 alert |
-| `CefPermissionHandler` | 全部拒绝（摄像头/麦克风/定位/剪贴板/通知/全屏） | 测试系统不需要 |
-| `CefDragHandler` | `OnDragEnter` 返回 true | 防止把文件拖进窗口导致导航 |
-| `CefDownloadHandler` | 保留：`OnBeforeDownload` 把文件落到固定目录并提示路径 | CSV 导出要用 |
-| `CefDialogHandler` | 保留文件选择（`OnFileDialog` 用原生 `GetOpenFileName`） | 导入 Excel/CSV 依赖 `<input type=file>` |
-| `CefRenderHandler` | 不需要（窗口模式，不用 OSR） | — |
-| `CefFocusHandler` / `CefFindHandler` 等 | 不实现 | — |
+| Handler                                 | 我们的实现                                                                                                                                                  | 目的                                         |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| `CefLifeSpanHandler`                    | `OnBeforePopup` 返回 true 直接拒绝；`OnBeforeClose` 通知主窗口退出                                                                                          | 客户端不开新窗口                             |
+| `CefLoadHandler`                        | 记录加载状态；`OnLoadError` 显示本地错误页（"服务未启动，请重启程序"）                                                                                      | 不白屏                                       |
+| `CefDisplayHandler`                     | 忽略页面 title 变化，标题固定；忽略 favicon                                                                                                                 | 标题栏不出现 `127.0.0.1:…`                   |
+| `CefContextMenuHandler`                 | `OnBeforeContextMenu` 里 `model->Clear()`                                                                                                                   | **去掉右键菜单**（刷新/另存为/检查都在里面） |
+| `CefKeyboardHandler`                    | 白名单式拦截（见 §7）                                                                                                                                       | 去掉刷新、缩放、打印、源码                   |
+| `CefRequestHandler`                     | `OnBeforeBrowse` 只放行 `http://127.0.0.1:<port>`；`OnBeforeResourceLoad` 拒绝外部域名；`OnCertificateError` 拒绝；`OnRenderProcessTerminated` 自动重载一次 | 页面不能被导航走、不能外联                   |
+| `CefJSDialogHandler`                    | `OnJSDialog` 直接返回 true（吞掉）；或转成原生 MessageBox                                                                                                   | 不出现浏览器样式的 alert                     |
+| `CefPermissionHandler`                  | 全部拒绝（摄像头/麦克风/定位/剪贴板/通知/全屏）                                                                                                             | 测试系统不需要                               |
+| `CefDragHandler`                        | `OnDragEnter` 返回 true                                                                                                                                     | 防止把文件拖进窗口导致导航                   |
+| `CefDownloadHandler`                    | 保留：`OnBeforeDownload` 把文件落到固定目录并提示路径                                                                                                       | CSV 导出要用                                 |
+| `CefDialogHandler`                      | 保留文件选择（`OnFileDialog` 用原生 `GetOpenFileName`）                                                                                                     | 导入 Excel/CSV 依赖 `<input type=file>`      |
+| `CefRenderHandler`                      | 不需要（窗口模式，不用 OSR）                                                                                                                                | —                                            |
+| `CefFocusHandler` / `CefFindHandler` 等 | 不实现                                                                                                                                                      | —                                            |
 
 **不实现的 handler 会让 CEF 走默认行为**，所以"要禁的"必须显式实现，
 不能靠"不写"。
@@ -275,22 +275,22 @@ cefclient 把这些 handler 拆在 `tests/shared/browser/client_app_browser.cc`
 
 这些是"浏览器才有、客户端不该有"的行为，逐条对应到实现位置：
 
-| 行为 | 触发方式 | 处理 |
-|---|---|---|
-| 刷新 | F5 / Ctrl+R / Ctrl+Shift+R / 右键菜单 | 键盘拦截 + 清空右键菜单 |
-| 前进 / 后退 | Alt+← / Alt+→ / 鼠标侧键 | `OnBeforeBrowse` 拒绝导航 |
-| 地址栏 / 工具栏 / 标签页 | — | 本来就没有（不用 CEF 的 chrome） |
-| 开发者工具 | F12 / Ctrl+Shift+I | 默认拦截；`--devtools` 或 Debug 构建才放行 |
-| 页面缩放 | Ctrl+滚轮 / Ctrl+± / Ctrl+0 | 键盘拦截；`SetZoomLevel(0)` 锁定 |
-| 打印 | Ctrl+P | 键盘拦截 |
-| 另存为 / 查看源码 | Ctrl+S / Ctrl+U | 键盘拦截（右键菜单已清空） |
-| 下载页面的"保存" | 右键菜单 | 同上 |
-| 拖放导航 | 拖文件进窗口 | `OnDragEnter` 取消 |
-| 弹窗 / 新窗口 | `target=_blank`、`window.open` | `OnBeforePopup` 返回 true |
-| 外部链接 | 点击 http(s) 外链 | `OnBeforeBrowse` 拦下，用 `ShellExecute` 交给系统浏览器 |
-| 首次运行提示 / 默认浏览器检测 | — | `--no-first-run --no-default-browser-check` |
-| 自动填充 / 翻译气泡 | — | `--disable-features=Translate,AutofillServerCommunication` |
-| 文本选择蓝框 | 鼠标拖选 | 页面 CSS `user-select:none`（表格输入框除外） |
+| 行为                          | 触发方式                              | 处理                                                       |
+| ----------------------------- | ------------------------------------- | ---------------------------------------------------------- |
+| 刷新                          | F5 / Ctrl+R / Ctrl+Shift+R / 右键菜单 | 键盘拦截 + 清空右键菜单                                    |
+| 前进 / 后退                   | Alt+← / Alt+→ / 鼠标侧键              | `OnBeforeBrowse` 拒绝导航                                  |
+| 地址栏 / 工具栏 / 标签页      | —                                     | 本来就没有（不用 CEF 的 chrome）                           |
+| 开发者工具                    | F12 / Ctrl+Shift+I                    | 默认拦截；`--devtools` 或 Debug 构建才放行                 |
+| 页面缩放                      | Ctrl+滚轮 / Ctrl+± / Ctrl+0           | 键盘拦截；`SetZoomLevel(0)` 锁定                           |
+| 打印                          | Ctrl+P                                | 键盘拦截                                                   |
+| 另存为 / 查看源码             | Ctrl+S / Ctrl+U                       | 键盘拦截（右键菜单已清空）                                 |
+| 下载页面的"保存"              | 右键菜单                              | 同上                                                       |
+| 拖放导航                      | 拖文件进窗口                          | `OnDragEnter` 取消                                         |
+| 弹窗 / 新窗口                 | `target=_blank`、`window.open`        | `OnBeforePopup` 返回 true                                  |
+| 外部链接                      | 点击 http(s) 外链                     | `OnBeforeBrowse` 拦下，用 `ShellExecute` 交给系统浏览器    |
+| 首次运行提示 / 默认浏览器检测 | —                                     | `--no-first-run --no-default-browser-check`                |
+| 自动填充 / 翻译气泡           | —                                     | `--disable-features=Translate,AutofillServerCommunication` |
+| 文本选择蓝框                  | 鼠标拖选                              | 页面 CSS `user-select:none`（表格输入框除外）              |
 
 ---
 
@@ -298,9 +298,9 @@ cefclient 把这些 handler 拆在 `tests/shared/browser/client_app_browser.cc`
 
 ### 8.1 静态资源：开发用目录，发布嵌入 exe
 
-| 模式 | 做法 | 用途 |
-|---|---|---|
-| 目录 | 服务端从 `www/` 读（现状） | 开发调试，改完刷新即生效 |
+| 模式 | 做法                                        | 用途                     |
+| ---- | ------------------------------------------- | ------------------------ |
+| 目录 | 服务端从 `www/` 读（现状）                  | 开发调试，改完刷新即生效 |
 | 内嵌 | `www/` 打成 RCDATA 编进 exe，服务端从内存取 | 发布：客户看不到、删不掉 |
 
 内嵌需要给底座加一个约 80 行的 `ResourceStaticHandler`：
@@ -365,21 +365,21 @@ EPH205\
 
 合计约 **255 MB**。可裁剪项（按需）：
 
-| 项 | 省 | 代价 |
-|---|---|---|
+| 项                        | 省     | 代价                            |
+| ------------------------- | ------ | ------------------------------- |
 | vk_swiftshader + vulkan-1 | 5.6 MB | 无独显/驱动异常时三维视图不可用 |
-| chrome_200_percent.pak | 0.9 MB | 200% DPI 下图标略糊 |
-| 多余的 locales | ~3 MB | 只保留中文/英文 |
+| chrome_200_percent.pak    | 0.9 MB | 200% DPI 下图标略糊             |
+| 多余的 locales            | ~3 MB  | 只保留中文/英文                 |
 
 不建议裁 libGLESv2/ANGLE——三维视图就靠它。
 
 ### 10.2 分发
 
-| 形态 | 说明 |
-|---|---|
-| 便携 zip | 解压即用，最省事，适合试用 |
+| 形态              | 说明                                            |
+| ----------------- | ----------------------------------------------- |
+| 便携 zip          | 解压即用，最省事，适合试用                      |
 | Inno Setup 安装包 | 开始菜单/桌面快捷方式、卸载、装到 Program Files |
-| 静默安装 | 车间批量部署用 |
+| 静默安装          | 车间批量部署用                                  |
 
 第一期做便携 zip + 一个简单的 Inno 脚本即可。
 
@@ -399,15 +399,15 @@ data\ 放哪？ → 记录属于业务数据，放程序目录下的 data\ 或 %
 
 ## 11. 和 WebView2 / QCefView 的对比
 
-| | 本方案（CEF 109） | WebView2 | QCefView |
-|---|---|---|---|
-| 运行时来源 | 随程序打包 257 MB | 系统 Edge 运行时 | 同 CEF |
-| 版本可控 | 完全固定 | 随系统更新 | 固定 |
-| 离线部署 | 拷贝即用 | 需预装运行时 | 同 CEF |
-| Win7 | 支持（109 是最后一版） | 不支持 | 支持 |
-| 依赖 Qt | 无 | 无 | 有 |
-| 开发量 | 中（自己写窗口和 handler） | 小 | 小 |
-| 观感可控 | 完全可控 | 中等（Edge 的一些行为去不掉） | 完全可控 |
+|            | 本方案（CEF 109）          | WebView2                      | QCefView |
+| ---------- | -------------------------- | ----------------------------- | -------- |
+| 运行时来源 | 随程序打包 257 MB          | 系统 Edge 运行时              | 同 CEF   |
+| 版本可控   | 完全固定                   | 随系统更新                    | 固定     |
+| 离线部署   | 拷贝即用                   | 需预装运行时                  | 同 CEF   |
+| Win7       | 支持（109 是最后一版）     | 不支持                        | 支持     |
+| 依赖 Qt    | 无                         | 无                            | 有       |
+| 开发量     | 中（自己写窗口和 handler） | 小                            | 小       |
+| 观感可控   | 完全可控                   | 中等（Edge 的一些行为去不掉） | 完全可控 |
 
 结论：**离线 + 版本固定 + 零 Qt** 这三条决定了用 CEF。
 
@@ -415,14 +415,14 @@ data\ 放哪？ → 记录属于业务数据，放程序目录下的 data\ 或 %
 
 ## 12. 分阶段
 
-| 阶段 | 内容 | 验收 |
-|---|---|---|
-| P0 | 3rdparty 放入 CEF、CMake `find_package` 跑通、最小窗口加载 `127.0.0.1:8790` | 窗口里能看到登录页 |
-| P1 | handler 清单实现，禁止清单全部生效 | 按 F5 没反应、右键没菜单、拖文件没反应 |
-| P2 | 服务端线程化 + 随机端口 + 单实例 + 日志 | 双击即用，两个实例不会同时开 |
-| P3 | www 内嵌、`--devtools` 开关、错误页 | 只发一个目录，去掉 www 也能跑 |
-| P4 | 打包（zip / Inno Setup）、图标、签名 | 装到干净机器上一次成功 |
-| — | ~~无边框自绘标题栏~~ | 已否决：用系统标题栏 |
+| 阶段 | 内容                                                                        | 验收                                   |
+| ---- | --------------------------------------------------------------------------- | -------------------------------------- |
+| P0   | 3rdparty 放入 CEF、CMake `find_package` 跑通、最小窗口加载 `127.0.0.1:8790` | 窗口里能看到登录页                     |
+| P1   | handler 清单实现，禁止清单全部生效                                          | 按 F5 没反应、右键没菜单、拖文件没反应 |
+| P2   | 服务端线程化 + 随机端口 + 单实例 + 日志                                     | 双击即用，两个实例不会同时开           |
+| P3   | www 内嵌、`--devtools` 开关、错误页                                         | 只发一个目录，去掉 www 也能跑          |
+| P4   | 打包（zip / Inno Setup）、图标、签名                                        | 装到干净机器上一次成功                 |
+| —    | ~~无边框自绘标题栏~~                                                        | 已否决：用系统标题栏                   |
 
 P0~P2 是核心，估计 2~3 天；P3~P4 再加 1~2 天。
 
@@ -477,13 +477,13 @@ P0~P2 是核心，估计 2~3 天；P3~P4 再加 1~2 天。
 
 ### 已完成
 
-| 阶段 | 内容 | 产物 |
-|---|---|---|
-| P0 | CEF 放 `3rdparty/cef-109`（gitignore）+ `find_package(CEF)` + 最小窗口 | `apps/cef_client_shell/` |
-| P1 | handler 清单：右键菜单清空、F5/Ctrl+R/Ctrl+P/Ctrl+S/Ctrl+U/缩放全拦、弹窗拦截、拖放拦截、权限拒绝、外链交给系统浏览器 | `client.cpp` |
-| P2 | 服务端线程化（`V1Server::Start/Stop`）+ 端口冲突自动顺延（8791..8810）+ 单实例 + CEF 日志 | `main.cpp` |
-| P3 | `--devtools` 开关（仅调试版开 9223）、导出落到 `exports\` | — |
-| P4 | 打包脚本：目录 + zip | `tools/package_client.bat` |
+| 阶段 | 内容                                                                                                                  | 产物                       |
+| ---- | --------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| P0   | CEF 放 `3rdparty/cef-109`（gitignore）+ `find_package(CEF)` + 最小窗口                                                | `apps/cef_client_shell/`   |
+| P1   | handler 清单：右键菜单清空、F5/Ctrl+R/Ctrl+P/Ctrl+S/Ctrl+U/缩放全拦、弹窗拦截、拖放拦截、权限拒绝、外链交给系统浏览器 | `client.cpp`               |
+| P2   | 服务端线程化（`V1Server::Start/Stop`）+ 端口冲突自动顺延（8791..8810）+ 单实例 + CEF 日志                             | `main.cpp`                 |
+| P3   | `--devtools` 开关（仅调试版开 9223）、导出落到 `exports\`                                                             | —                          |
+| P4   | 打包脚本：目录 + zip                                                                                                  | `tools/package_client.bat` |
 
 ### 验证
 

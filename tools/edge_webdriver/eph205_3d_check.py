@@ -18,7 +18,7 @@ DRIVER = "http://127.0.0.1:9515"
 APP = "http://127.0.0.1:8790/eph205/"
 HEALTH = "http://127.0.0.1:8790/api/v1/health"
 EDGE = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
-ROOT = r"D:\trae_workspace\my_ws_server_test"
+ROOT = r"D:\trae_workspace\cef109_ws_base_env"
 SHOT = os.path.join(ROOT, "temp", "eph205_3d.png")
 
 

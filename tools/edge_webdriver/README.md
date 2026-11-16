@@ -22,11 +22,11 @@ v1_server.exe 8780
 
 ## 脚本
 
-| 文件 | 模式 | 作用 |
-|---|---|---|
-| `edge_auto.py` | 无头 | 打开页面，检查连接、Capabilities、Modules、Streams、日志并截图 |
-| `edge_headed.py` | 有头 + DevTools | 打开可见 Edge 和 DevTools，保持 60 秒 |
-| `cdp_breakpoint.py` | CDP | 在 `app.js` 的 `log()` 下断点，暂停、查看变量、慢速单步、截图 |
+| 文件                | 模式            | 作用                                                           |
+| ------------------- | --------------- | -------------------------------------------------------------- |
+| `edge_auto.py`      | 无头            | 打开页面，检查连接、Capabilities、Modules、Streams、日志并截图 |
+| `edge_headed.py`    | 有头 + DevTools | 打开可见 Edge 和 DevTools，保持 60 秒                          |
+| `cdp_breakpoint.py` | CDP             | 在 `app.js` 的 `log()` 下断点，暂停、查看变量、慢速单步、截图  |
 
 ### 无头冒烟
 
@@ -60,7 +60,7 @@ python -I tools/edge_webdriver/edge_headed.py
 
 ```bat
 msedge.exe --remote-debugging-port=9222 ^
-  --user-data-dir=D:\trae_workspace\my_ws_server_test\temp\cdp-base-profile ^
+  --user-data-dir=D:\trae_workspace\cef109_ws_base_env\temp\cdp-base-profile ^
   --auto-open-devtools-for-tabs --no-first-run --no-proxy-server ^
   --window-size=1400,900 http://127.0.0.1:8780/
 ```

@@ -14,8 +14,8 @@ DEBUG_HOST = "127.0.0.1"
 DEBUG_PORT = 9222
 APP_URL = "http://127.0.0.1:8780/"
 BREAK_LINE = 7  # app.js 第 8 行 (0-based)，log() 内
-SHOT = r"D:\trae_workspace\my_ws_server_test\temp\cdp_paused.png"
-DESKTOP = r"D:\trae_workspace\my_ws_server_test\temp\cdp_devtools.png"
+SHOT = r"D:\trae_workspace\cef109_ws_base_env\temp\cdp_paused.png"
+DESKTOP = r"D:\trae_workspace\cef109_ws_base_env\temp\cdp_devtools.png"
 
 
 def http_json(url, timeout=10):

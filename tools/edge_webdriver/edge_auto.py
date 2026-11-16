@@ -8,7 +8,7 @@ sys.stdout.reconfigure(encoding="utf-8")
 DRIVER = "http://127.0.0.1:9515"
 SERVER = "http://127.0.0.1:8780/"
 EDGE = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
-SHOT = r"D:\trae_workspace\my_ws_server_test\temp\edge_auto.png"
+SHOT = r"D:\trae_workspace\cef109_ws_base_env\temp\edge_auto.png"
 
 
 def http(method, url, data=None, timeout=20):

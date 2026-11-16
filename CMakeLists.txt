@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(my_ws_server_test C CXX)
+project(cef109_ws_base_env C CXX)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
