@@ -232,8 +232,8 @@ cd build/ninja-x64-release
 ```bat
 3rdparty\edgedriver_win64\msedgedriver.exe --port=9515
 
-python -I tools\eph205_api_test.py           :: 纯接口：连接→单点→作业→历史→CSV
-python -I tools\edge_webdriver\eph205_e2e.py :: 真实 UI：仿真→连接→导入→测量→五个页面
+python -I tools\e2e\api\eph205_api_test.py           :: 纯接口：连接→单点→作业→历史→CSV
+python -I tools\e2e\ui\edge_webdriver\eph205_e2e.py :: 真实 UI：仿真→连接→导入→测量→五个页面
 ```
 
 `eph205_e2e.py` 会在没有服务端时自己拉起一个，退出时结束。

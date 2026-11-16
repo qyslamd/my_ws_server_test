@@ -1,6 +1,6 @@
 @echo off
 setlocal
-set "ROOT=%~dp0.."
+set "ROOT=%~dp0..\.."
 set "SRC=%ROOT%\build\ninja-x64-release"
 set "DIST=%ROOT%\dist"
 set "APP=%DIST%\EPH205"

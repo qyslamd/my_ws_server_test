@@ -53,7 +53,7 @@ build.bat
 ### 2.2 Debug
 
 ```bat
-tools\build_debug.bat
+tools\build\build_debug.bat
 ```
 
 产物：`build-debug\v1_server.exe`、`build-debug\v1_server.pdb`。
@@ -93,7 +93,7 @@ v1_server.exe 8780
 ### 4.2 无头冒烟
 
 ```bash
-python -I tools/edge_webdriver/edge_auto.py
+python -I tools/dev/edge_auto.py
 ```
 
 脚本会：
@@ -118,7 +118,7 @@ log: ... core.state ...
 ### 4.3 有头 + DevTools
 
 ```bash
-python -I tools/edge_webdriver/edge_headed.py
+python -I tools/dev/edge_headed.py
 ```
 
 去掉 `--headless`，加：
@@ -161,7 +161,7 @@ curl http://127.0.0.1:9222/json
 ### 5.2 运行断点脚本
 
 ```bash
-python -I tools/edge_webdriver/cdp_breakpoint.py
+python -I tools/dev/cdp_breakpoint.py
 ```
 
 脚本流程：
@@ -305,8 +305,8 @@ CDB 直接读 MSVC PDB 私有符号，方法名解析完整；LLDB 的 Windows P
 ## 9. 产物
 
 ```text
-tools/build_debug.bat
-tools/edge_webdriver/
+tools/build/build_debug.bat
+tools/e2e/ui/edge_webdriver/
   README.md
   edge_auto.py
   edge_headed.py

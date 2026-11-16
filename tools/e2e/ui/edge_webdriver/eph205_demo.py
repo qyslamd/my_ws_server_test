@@ -5,7 +5,7 @@
 批量导出）、工具（仿真点值/日志）、帮助与三维、退出并切到操作员看角色差异。
 
 用法：
-  python -I tools/edge_webdriver/eph205_demo.py
+  python -I tools/e2e/ui/edge_webdriver/eph205_demo.py
 
 前置：服务端已在 8790 运行（建议 --auth），EdgeDriver 在 9515。
 跑完不删除会话，浏览器留在桌面上。

@@ -40,7 +40,7 @@
   - 通讯层不持有环形缓冲，所以"来不及发送而丢弃数据"无法上报为 `core.overrun` 事件；
     模块自己的 `readings_` 队列满 4096 条时是静默丢弃（`eph205_module.cpp`）。
   - 非法的 `credit` 消息只被忽略，没有回 `core.error`（通讯层错误通道尚未建立）。
-  - 自动化脚本 `tools/edge_webdriver/eph205_e2e.py` 里还有几处按旧界面写的选择器
+  - 自动化脚本 `tools/e2e/ui/edge_webdriver/eph205_e2e.py` 里还有几处按旧界面写的选择器
     （用 `.tag` 类找"管理员/操作员"标识，新界面是 `.chip`），跑之前需要先更新。
   - Qt QWidget 前端只有方案没有实现，见 `docs/plan/03-web与Qt双前端策略.md`。
   - 页面尚未嵌进 exe，客户机仍需要 `www/` 目录；安装包（Inno Setup）未做。
@@ -107,7 +107,9 @@ src/examples/mongoose_c/      mongoose 纯 C 教学 demo  -> mongoose_c_demo.exe
 src/examples/mongoose_cpp/    mongoose 双通道波形 demo -> mongoose_cpp_demo.exe
 src/tests/                    单元测试（framework/ common/ modules/）
 docs/                         文档，索引见 docs/README.md
-tools/                        构建、打包、自动化脚本
+tools/build/                  构建与打包脚本（build_client、package_client、installer.iss）
+tools/e2e/                    端到端测试：api/（纯协议） ui/（浏览器与客户端）
+tools/dev/                    手动调试用的小工具（CDP 操作台）
 3rdparty/                     mongoose / sqlite / spdlog / googletest 等（源码入库）
 ```
 
@@ -166,28 +168,31 @@ v1_config.json                 通讯层参数持久化（工作目录下）
 
 ## 7. 常用命令
 
+构建与打包（脚本都在 `tools/build/`）：
+
 ```bat
-build.bat                                   :: x64 + release，全部目标（不含客户端）
-build.bat x64 release client                :: 连桌面客户端一起（需要 CEF）
-build.bat x64 debug                         :: 调试版
-tools\build_client.bat                      :: 上面那条的别名，留着手熟
-tools\build_debug.bat                       :: x64 debug 的别名
-tools\package_client.bat                    :: 打包：dist\EPH205 + zip
-                                            :: 装了 Inno Setup 6 时再出安装包
+build.bat                              :: x64 + release，全部目标（不含客户端）
+build.bat x64 release client           :: 连桌面客户端一起（需要 CEF）
+build.bat x64 debug                    :: 调试版
+tools\build\build_client.bat           :: 上面那条的别名，留着手熟
+tools\build\build_debug.bat            :: x64 debug 的别名
+tools\build\package_client.bat         :: 打包：dist\EPH205 + zip
+                                       :: 装了 Inno Setup 6 时再出安装包
 ```
 
-安装包由 `tools/installer.iss` 描述（Inno Setup 6）。`package_client.bat` 检测到
+安装包由 `tools/build/installer.iss` 描述（Inno Setup 6）。`package_client.bat` 检测到
 `ISCC.exe` 会自动编译，产物是 `dist\EP-H205-<版本>-x64-setup.exe`；没装就跳过，
 只留免安装版目录与 zip。
 
-自动化验证（需要先起对应驱动）：
+端到端测试（`tools/e2e/`）。`api/` 只走 HTTP 与 WebSocket，`ui/` 需要浏览器或
+客户端进程与对应驱动：
 
 ```bat
-python -I tools\eph205_api_test.py            :: 纯接口：连接→单点→作业→历史→CSV
-python -I tools\eph205_auth_test.py           :: 登录与角色拦截
-python -I tools\eph205_fc_test.py             :: 流控回归：window=0 不推、额度耗尽暂停、归还恢复
-python -I tools\edge_webdriver\eph205_e2e.py  :: 真实 UI 全流程（EdgeDriver 9515）
-python -I tools\cef_test\eph205_client_check.py :: 桌面客户端（ChromeDriver 9516 + --devtools）
+python -I tools\e2e\api\eph205_api_test.py            :: 纯接口：连接→单点→作业→历史→CSV
+python -I tools\e2e\api\eph205_auth_test.py           :: 登录与角色拦截
+python -I tools\e2e\api\eph205_fc_test.py             :: 流控回归：window=0 不推、额度耗尽暂停、归还恢复
+python -I tools\e2e\ui\edge_webdriver\eph205_e2e.py  :: 真实 UI 全流程（EdgeDriver 9515）
+python -I tools\e2e\ui\cef_test\eph205_client_check.py :: 桌面客户端（ChromeDriver 9516 + --devtools）
 ```
 
 ---

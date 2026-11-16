@@ -442,7 +442,7 @@ P0~P2 是核心，估计 2~3 天；P3~P4 再加 1~2 天。
 ## 13. 风险与注意
 
 1. **CEF 升级成本**：升级要重新编译 wrapper、重跑一遍页面验证（我们已有
-   `tools/cef_test/eph205_cef_check.py` 可以复用）。固定 109 是好事，但要有
+   `tools/e2e/ui/cef_test/eph205_cef_check.py` 可以复用）。固定 109 是好事，但要有
    升级预案（Chromium 每 4 周一个版本，安全补丁会积压）。
 2. **杀毒误报**：未签名的 exe + 186 MB 的 libcef.dll，容易被拦。建议代码签名。
 3. **首次启动**：会创建缓存目录，第一次可能慢 1~2 秒；用启动画面或先建窗口再加载。
@@ -475,7 +475,7 @@ P0~P2 是核心，估计 2~3 天；P3~P4 再加 1~2 天。
 ## 15. 附：本轮已经验证过的事实
 
 - CEF 109 里页面的完整功能可用（登录/测量/实时读数/三维/历史），
-  脚本 `tools/cef_test/eph205_cef_check.py`，结论见
+  脚本 `tools/e2e/ui/cef_test/eph205_cef_check.py`，结论见
   `docs/guide/06-在CEF中使用当前的205web.md`。
 - ChromeDriver 109 用 `debuggerAddress` 附加 cefclient 稳定；
   Selenium 4.52 自带的服务管理会卡住（所以脚本用标准库 HTTP）。
@@ -494,11 +494,11 @@ P0~P2 是核心，估计 2~3 天；P3~P4 再加 1~2 天。
 | P1   | handler 清单：右键菜单清空、F5/Ctrl+R/Ctrl+P/Ctrl+S/Ctrl+U/缩放全拦、弹窗拦截、拖放拦截、权限拒绝、外链交给系统浏览器 | `client.cpp`               |
 | P2   | 服务端线程化（`V1Server::Start/Stop`）+ 端口冲突自动顺延（8791..8810）+ 单实例 + CEF 日志                             | `main.cpp`                 |
 | P3   | `--devtools` 开关（仅调试版开 9223）、导出落到 `exports\`                                                             | —                          |
-| P4   | 打包脚本：目录 + zip                                                                                                  | `tools/package_client.bat` |
+| P4   | 打包脚本：目录 + zip                                                                                                  | `tools/build/package_client.bat` |
 
 ### 验证
 
-`tools/cef_test/eph205_client_check.py`（附加到 `EPH205.exe --devtools`）：
+`tools/e2e/ui/cef_test/eph205_client_check.py`（附加到 `EPH205.exe --devtools`）：
 
 ```text
 F5:     页面没有刷新
@@ -626,5 +626,5 @@ WM_DESTROY → OnBeforeClose`。以后要加多窗口，只需把 `gBrowserCount
 
 `PrintWindow` 抓不到 CEF 的 GPU 合成内容（只能拍到白底 + 标题栏）。
 截图时用 `EPH205.exe --devtools --disable-gpu` 启动，走软件合成，
-`tools/capture_window.ps1` 就能把窗口连同标题栏一起拍下来。
+`tools/e2e/ui/capture_window.ps1` 就能把窗口连同标题栏一起拍下来。
 这是拍照手段，不影响正常使用时的硬件渲染。

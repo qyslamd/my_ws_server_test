@@ -1,6 +1,6 @@
 """三维视图冒烟：打开帮助页 → 三维视图，确认模型加载与画布渲染。
 
-用法：python -I tools/edge_webdriver/eph205_3d_check.py
+用法：python -I tools/e2e/ui/edge_webdriver/eph205_3d_check.py
 没有服务端时会自己拉起，退出时结束。
 """
 

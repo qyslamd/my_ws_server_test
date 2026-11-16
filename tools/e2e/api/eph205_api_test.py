@@ -9,7 +9,7 @@
   6. 查作业状态、历史列表，导出 CSV。
 
 用法：
-  python -I tools/eph205_api_test.py [base_url]
+  python -I tools/e2e/api/eph205_api_test.py [base_url]
   base_url 默认 http://127.0.0.1:8790
 """
 

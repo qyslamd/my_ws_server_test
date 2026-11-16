@@ -2,7 +2,7 @@
 
 前提：服务端以 --auth 启动。
 
-  python -I tools/eph205_auth_test.py
+  python -I tools/e2e/api/eph205_auth_test.py
 """
 
 import base64

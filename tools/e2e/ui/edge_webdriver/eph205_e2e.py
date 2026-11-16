@@ -9,7 +9,7 @@
   3rdparty\\edgedriver_win64\\msedgedriver.exe --port=9515  已运行
 
 用法：
-  python -I tools/edge_webdriver/eph205_e2e.py
+  python -I tools/e2e/ui/edge_webdriver/eph205_e2e.py
 """
 
 import base64

@@ -1,5 +1,5 @@
 # 抓取指定进程的主窗口（含标题栏/边框），用于验证客户端外观
-# 用法: powershell -File tools/capture_window.ps1 -ProcessName EPH205 -Out shot.png
+# 用法: powershell -File tools/e2e/ui/capture_window.ps1 -ProcessName EPH205 -Out shot.png
 param([string]$ProcessName = "EPH205", [string]$Out = "window.png")
 
 Add-Type @"

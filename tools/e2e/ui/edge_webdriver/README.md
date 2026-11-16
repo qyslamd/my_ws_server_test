@@ -31,7 +31,7 @@ v1_server.exe 8780
 ### 无头冒烟
 
 ```bash
-python -I tools/edge_webdriver/edge_auto.py
+python -I tools/dev/edge_auto.py
 ```
 
 实测输出（通讯层无业务模块）：
@@ -49,7 +49,7 @@ screenshot: temp/edge_auto.png
 ### 有头 + DevTools
 
 ```bash
-python -I tools/edge_webdriver/edge_headed.py
+python -I tools/dev/edge_headed.py
 ```
 
 会打开可见 Edge 窗口和 DevTools，保持 60 秒。
@@ -66,7 +66,7 @@ msedge.exe --remote-debugging-port=9222 ^
 ```
 
 ```bash
-python -I tools/edge_webdriver/cdp_breakpoint.py
+python -I tools/dev/cdp_breakpoint.py
 ```
 
 脚本在 `app.js` 第 8 行（0-based 7）的 `log()` 内下断点，然后执行
