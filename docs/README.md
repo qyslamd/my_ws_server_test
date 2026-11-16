@@ -14,7 +14,7 @@ status: active
 
 | 位置 | 放什么 | 内容 |
 |---|---|---|
-| `spec/` | 协议规范（活文档，跟代码演进） | 旧规范背景、v1 协议正文、落地检查清单、讲人话版 |
+| `spec/` | 协议规范（活文档，跟代码演进） | v0 背景、v1 协议正文、落地检查清单 |
 | `guide/` | 入门与操作指南 | HTTP/WebSocket/CEF 入门、205 web 主文档、旧项目梳理、CEF 使用、自动化调试 |
 | `plan/` | 方案与储备（定稿但未实施，或设计记录） | 传输层抽象、CEF 客户端、web/Qt 双前端策略 |
 | `todo.md` | 待办 | 项目待办与设计储备 |
@@ -24,9 +24,8 @@ status: active
 ```text
 spec/
   01-ws-protocol.md             v0 demo 规范（存档，先读它了解背景）
-  02-ws-protocol-v1.md          v1 协议正文（设计稿）
+  02-ws-protocol-v1.md          v1 协议正文（设计稿，唯一正文）
   03-v1-checklist.md            v1 落地检查清单（活文档）
-  04-工控通讯模型_v1_通俗版.md    同一份协议的讲人话版
 guide/
   01-什么是http协议.md            HTTP/REST 入门：资源、方法、状态码
   02-什么是websocket协议.md       WebSocket 入门：为什么要它、怎么握手、帧怎么传
