@@ -1,0 +1,65 @@
+{
+  "name": "EP-H2805 三维连接示意",
+  "parts": [
+    {
+      "file": "parts/table.obj",
+      "label": "工作台",
+      "position": [0.0, 0.0, 0.0]
+    },
+    {
+      "file": "parts/pc_tower.obj",
+      "label": "上位机",
+      "position": [-0.10, 0.75, -0.05]
+    },
+    {
+      "file": "parts/pc_monitor.obj",
+      "label": "显示器",
+      "position": [-0.62, 0.75, -0.20]
+    },
+    {
+      "file": "parts/pc_keyboard.obj",
+      "label": "键盘",
+      "position": [-0.70, 0.75, 0.16]
+    },
+    {
+      "file": "parts/pc_mouse.obj",
+      "label": "鼠标",
+      "position": [-0.40, 0.75, 0.14]
+    },
+    {
+      "file": "parts/pc_cable_keyboard.obj",
+      "label": "键盘线",
+      "position": [0.0, 0.0, 0.0]
+    },
+    {
+      "file": "parts/pc_cable_mouse.obj",
+      "label": "鼠标线",
+      "position": [0.0, 0.0, 0.0]
+    },
+    {
+      "file": "parts/pc_cable_tester.obj",
+      "label": "测试线缆",
+      "position": [0.0, 0.0, 0.0]
+    },
+    {
+      "file": "parts/tester_board.obj",
+      "label": "电阻测试板",
+      "position": [0.20, 0.75, 0.0]
+    },
+    {
+      "file": "parts/multiplexer_board.obj",
+      "label": "多路器板 1",
+      "position": [0.40, 0.75, 0.0]
+    },
+    {
+      "file": "parts/multiplexer_board.obj",
+      "label": "多路器板 2",
+      "position": [0.62, 0.75, 0.0]
+    },
+    {
+      "file": "parts/multiplexer_board.obj",
+      "label": "多路器板 3",
+      "position": [0.84, 0.75, 0.0]
+    }
+  ]
+}

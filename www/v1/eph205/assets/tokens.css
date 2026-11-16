@@ -1,0 +1,244 @@
+/* =========================================================================
+   Material Design 3 — 设计令牌
+   纯手写 tonal palette，不依赖 CDN，离线可用。
+   ========================================================================= */
+
+:root {
+  color-scheme: light;
+
+  /* ---- 主色：工业蓝 ---- */
+  --md-primary: #1b5e8c;
+  --md-on-primary: #ffffff;
+  --md-primary-container: #cfe5ff;
+  --md-on-primary-container: #001d33;
+  --md-primary-hover: #17527b;
+
+  /* ---- 次色：蓝灰 ---- */
+  --md-secondary: #4f616e;
+  --md-on-secondary: #ffffff;
+  --md-secondary-container: #d2e5f5;
+  --md-on-secondary-container: #0b1d29;
+
+  /* ---- 第三色：琥珀（交互聚焦/强调） ---- */
+  --md-tertiary: #8a5a00;
+  --md-on-tertiary: #ffffff;
+  --md-tertiary-container: #ffdea6;
+  --md-on-tertiary-container: #2b1700;
+
+  /* ---- 语义状态色 ---- */
+  --md-error: #ba1a1a;
+  --md-on-error: #ffffff;
+  --md-error-container: #ffdad6;
+  --md-on-error-container: #410002;
+
+  --md-success: #2e7d32;
+  --md-success-container: #c8e6c9;
+  --md-on-success-container: #0b3d10;
+
+  --md-warning: #a2600a;
+  --md-warning-container: #ffe0b2;
+  --md-on-warning-container: #3a2200;
+
+  /* ---- 中性表面 ---- */
+  --md-surface: #f8f9fc;
+  --md-on-surface: #191c20;
+  --md-surface-variant: #dde3ea;
+  --md-on-surface-variant: #41474d;
+
+  --md-surface-dim: #d8dae0;
+  --md-surface-bright: #f8f9fc;
+
+  --md-surface-container-lowest: #ffffff;
+  --md-surface-container-low: #f2f4f8;
+  --md-surface-container: #eceef3;
+  --md-surface-container-high: #e6e8ee;
+  --md-surface-container-highest: #e0e3e9;
+
+  --md-outline: #71787e;
+  --md-outline-variant: #c1c7ce;
+
+  --md-inverse-surface: #2e3135;
+  --md-inverse-on-surface: #eff1f5;
+  --md-inverse-primary: #9ecbf5;
+
+  --md-scrim: rgba(0, 0, 0, 0.32);
+  --md-shadow: rgba(16, 24, 40, 0.12);
+  /* 三维视口底色：模型是深色材质，视口固定用深色，两种主题都成立 */
+  --md-scene-bg: #1b1f2a;
+
+  /* ---- 字体 ---- */
+  --md-font: "Microsoft YaHei", "PingFang SC", "Segoe UI", system-ui, sans-serif;
+  --md-font-mono: "Cascadia Mono", "JetBrains Mono", Consolas, monospace;
+
+  /* MD3 type scale：字号/行高/字重/字距 */
+  --md-display-large-size: 57px;
+  --md-display-large-line: 64px;
+  --md-display-large-weight: 400;
+  --md-display-small-size: 36px;
+  --md-display-small-line: 44px;
+  --md-display-small-weight: 400;
+  --md-headline-large-size: 32px;
+  --md-headline-large-line: 40px;
+  --md-headline-large-weight: 400;
+  --md-headline-medium-size: 28px;
+  --md-headline-medium-line: 36px;
+  --md-headline-medium-weight: 400;
+  --md-headline-small-size: 24px;
+  --md-headline-small-line: 32px;
+  --md-headline-small-weight: 400;
+  --md-title-large-size: 22px;
+  --md-title-large-line: 28px;
+  --md-title-large-weight: 400;
+  --md-title-medium-size: 16px;
+  --md-title-medium-line: 24px;
+  --md-title-medium-weight: 500;
+  --md-title-small-size: 14px;
+  --md-title-small-line: 20px;
+  --md-title-small-weight: 500;
+  --md-body-large-size: 16px;
+  --md-body-large-line: 24px;
+  --md-body-large-weight: 400;
+  --md-body-medium-size: 14px;
+  --md-body-medium-line: 20px;
+  --md-body-medium-weight: 400;
+  --md-body-small-size: 12px;
+  --md-body-small-line: 16px;
+  --md-body-small-weight: 400;
+  --md-label-large-size: 14px;
+  --md-label-large-line: 20px;
+  --md-label-large-weight: 500;
+  --md-label-medium-size: 12px;
+  --md-label-medium-line: 16px;
+  --md-label-medium-weight: 500;
+  --md-label-small-size: 11px;
+  --md-label-small-line: 16px;
+  --md-label-small-weight: 500;
+
+  /* ---- 形状 ---- */
+  --md-shape-xs: 4px;
+  --md-shape-sm: 8px;
+  --md-shape-md: 12px;
+  --md-shape-lg: 16px;
+  --md-shape-xl: 28px;
+  --md-shape-full: 999px;
+
+  /* ---- 高程 ---- */
+  --md-elevation-0: none;
+  --md-elevation-1: 0 1px 2px rgba(16, 24, 40, 0.08), 0 1px 3px rgba(16, 24, 40, 0.06);
+  --md-elevation-2: 0 2px 6px rgba(16, 24, 40, 0.10), 0 1px 2px rgba(16, 24, 40, 0.06);
+  --md-elevation-3: 0 6px 16px rgba(16, 24, 40, 0.14), 0 2px 4px rgba(16, 24, 40, 0.06);
+
+  /* ---- 动效 ---- */
+  --md-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+  --md-easing-emphasized: cubic-bezier(0.2, 0, 0, 1);
+  --md-duration-short: 150ms;
+  --md-duration-medium: 250ms;
+  --md-duration-long: 400ms;
+
+  /* ---- 布局 ---- */
+  --md-rail-width: 96px;
+  --md-topbar-height: 64px;
+  --md-gutter: 24px;
+}
+
+/* =========================================================================
+   深色主题：同一套角色，tonal 反转
+   ========================================================================= */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --md-primary: #9ecbf5;
+  --md-on-primary: #00344f;
+  --md-primary-container: #004b70;
+  --md-on-primary-container: #cfe5ff;
+  --md-primary-hover: #b7d8fa;
+
+  --md-secondary: #b7c9d9;
+  --md-on-secondary: #21323f;
+  --md-secondary-container: #374956;
+  --md-on-secondary-container: #d2e5f5;
+
+  --md-tertiary: #ffb95c;
+  --md-on-tertiary: #492900;
+  --md-tertiary-container: #683d00;
+  --md-on-tertiary-container: #ffdea6;
+
+  --md-error: #ffb4ab;
+  --md-on-error: #690005;
+  --md-error-container: #93000a;
+  --md-on-error-container: #ffdad6;
+
+  --md-success: #8bd48f;
+  --md-success-container: #1b4d20;
+  --md-on-success-container: #c8e6c9;
+
+  --md-warning: #ffca7a;
+  --md-warning-container: #5c3a00;
+  --md-on-warning-container: #ffe0b2;
+
+  --md-surface: #111418;
+  --md-on-surface: #e1e3e8;
+  --md-surface-variant: #41474d;
+  --md-on-surface-variant: #c1c7ce;
+
+  --md-surface-dim: #111418;
+  --md-surface-bright: #37393d;
+
+  --md-surface-container-lowest: #0c0f12;
+  --md-surface-container-low: #191c20;
+  --md-surface-container: #1d2024;
+  --md-surface-container-high: #272a2f;
+  --md-surface-container-highest: #32353a;
+
+  --md-outline: #8b9197;
+  --md-outline-variant: #41474d;
+
+  --md-inverse-surface: #e1e3e8;
+  --md-inverse-on-surface: #2e3135;
+  --md-inverse-primary: #1b5e8c;
+
+  --md-scrim: rgba(0, 0, 0, 0.6);
+  --md-shadow: rgba(0, 0, 0, 0.5);
+}
+
+/* =========================================================================
+   排版工具类
+   ========================================================================= */
+.t-display-large { font-size: var(--md-display-large-size); line-height: var(--md-display-large-line); font-weight: var(--md-display-large-weight); }
+.t-display-small { font-size: var(--md-display-small-size); line-height: var(--md-display-small-line); font-weight: var(--md-display-small-weight); }
+.t-headline-large { font-size: var(--md-headline-large-size); line-height: var(--md-headline-large-line); font-weight: var(--md-headline-large-weight); }
+.t-headline-medium { font-size: var(--md-headline-medium-size); line-height: var(--md-headline-medium-line); font-weight: var(--md-headline-medium-weight); }
+.t-headline-small { font-size: var(--md-headline-small-size); line-height: var(--md-headline-small-line); font-weight: var(--md-headline-small-weight); }
+.t-title-large { font-size: var(--md-title-large-size); line-height: var(--md-title-large-line); font-weight: var(--md-title-large-weight); }
+.t-title-medium { font-size: var(--md-title-medium-size); line-height: var(--md-title-medium-line); font-weight: var(--md-title-medium-weight); }
+.t-title-small { font-size: var(--md-title-small-size); line-height: var(--md-title-small-line); font-weight: var(--md-title-small-weight); }
+.t-body-large { font-size: var(--md-body-large-size); line-height: var(--md-body-large-line); font-weight: var(--md-body-large-weight); }
+.t-body-medium { font-size: var(--md-body-medium-size); line-height: var(--md-body-medium-line); font-weight: var(--md-body-medium-weight); }
+.t-body-small { font-size: var(--md-body-small-size); line-height: var(--md-body-small-line); font-weight: var(--md-body-small-weight); }
+.t-label-large { font-size: var(--md-label-large-size); line-height: var(--md-label-large-line); font-weight: var(--md-label-large-weight); }
+.t-label-medium { font-size: var(--md-label-medium-size); line-height: var(--md-label-medium-line); font-weight: var(--md-label-medium-weight); }
+.t-label-small { font-size: var(--md-label-small-size); line-height: var(--md-label-small-line); font-weight: var(--md-label-small-weight); }
+.t-mono { font-family: var(--md-font-mono); font-variant-numeric: tabular-nums; }
+
+/* ---------------------------------------------------------------------------
+   交互态与行状态（规范 §2.4：CEF 109 不支持 color-mix，改用预置 rgba）
+   --------------------------------------------------------------------------- */
+:root {
+  --hover-1: rgba(25, 28, 32, 0.05);
+  --hover-2: rgba(25, 28, 32, 0.12);
+  --hover-primary-05: rgba(27, 94, 140, 0.05);
+  --hover-primary-08: rgba(27, 94, 140, 0.08);
+  --row-error: rgba(186, 26, 26, 0.07);
+  --row-selected: rgba(27, 94, 140, 0.10);
+  --hover-error-08: rgba(186, 26, 26, 0.08);
+}
+
+:root[data-theme="dark"] {
+  --hover-1: rgba(225, 227, 232, 0.06);
+  --hover-2: rgba(225, 227, 232, 0.16);
+  --hover-primary-05: rgba(158, 203, 245, 0.08);
+  --hover-primary-08: rgba(158, 203, 245, 0.12);
+  --row-error: rgba(255, 180, 171, 0.10);
+  --row-selected: rgba(158, 203, 245, 0.14);
+  --hover-error-08: rgba(255, 180, 171, 0.12);
+}

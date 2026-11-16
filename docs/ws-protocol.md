@@ -37,10 +37,8 @@ const wsTxt = new WebSocket('ws://127.0.0.1:8765/control', ['wv.text']);
 
 二进制通道的 RECEIVE 回调为防御性空实现:前端在本通道上发送的任何帧一律丢弃,不处理。
 
-> **实现注意(libwebsockets)**:lws 服务端按「客户端请求的子协议名」路由到 `protocols[]`
-> 中同名协议;客户端不带子协议头时默认落到第 0 个协议(http)。URL 路径不参与路由,
-> 除非配置 mount。因此浏览器建连时**必须显式传子协议**:
-> `new WebSocket(url, 'stream')` / `new WebSocket(url, 'control')`。
+> **实现注意**:当前 mongoose 服务端以 URL 路径(`/stream`、`/control`)区分两条通道,
+> 不校验子协议;子协议协商仍作为规范要求保留,便于未来接入按子协议路由的后端。
 
 ---
 

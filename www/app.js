@@ -1,18 +1,24 @@
-// 双通道波形测试前端(mongoose / lws 两个服务端共用同一份)
-// 线路协议见 docs/ws-protocol.md:
-//   /control  文本通道(JSON 信封,双向)
-//   /stream   二进制通道(0xA5 帧,服务端单向推流)
-// 两个服务端均通过 Sec-WebSocket-Protocol 子协议区分通道。
-
 class WaveformClient {
   constructor({ canvasId = 'canvas', logId = 'log', statusId = 'status' } = {}) {
     this.canvas = document.getElementById(canvasId);
     this.ctx = this.canvas.getContext('2d');
     this.logEl = document.getElementById(logId);
     this.statusEl = document.getElementById(statusId);
+    this.btnStart = document.getElementById('btnStart');
+    
     this.wsBin = null;
     this.wsTxt = null;
     this.frameCount = 0;
+    this.sessionId = '';
+    
+    this.subscribedStreams = new Set();
+    this.metaCache = {}; 
+    this.heartbeatTimer = null;
+    
+    // 采集状态
+    this.isSampling = false;
+    this.btnStart.textContent = '开始采集';
+    this.btnStart.disabled = true; // 未连接时不可点
   }
 
   log(msg) {
@@ -48,18 +54,19 @@ class WaveformClient {
     ctx.stroke();
   }
 
-  // 解析 0xA5 帧:固定头 12B + 按 flags 位序排列的 [len][data] 块
   onBinaryMessage(ev) {
     const buf = ev.data;
     if (!(buf instanceof ArrayBuffer)) return;
     if (buf.byteLength < 12) return;
     const dv = new DataView(buf);
     if (dv.getUint8(0) !== 0xA5) { this.log('bad magic'); return; }
-    const ver      = dv.getUint8(1);
-    const opcode   = dv.getUint8(2);
+    
+    const opcode   = dv.getUint8(2); 
     const flags    = dv.getUint8(3);
     const streamId = dv.getUint32(4, true);
     const seq      = dv.getUint32(8, true);
+
+    if (!this.subscribedStreams.has(streamId)) return;
 
     let off = 12;
     const blocks = {};
@@ -72,16 +79,24 @@ class WaveformClient {
       blocks[order[i]] = buf.slice(off, off + len); off += len;
     }
 
-    if (blocks.META) {
-      let meta;
-      try { meta = JSON.parse(new TextDecoder().decode(blocks.META)); }
-      catch (e) { this.log('bad meta: ' + e); return; }
-      if (meta.kind === 'waveform' && blocks.DATA) {
-        this.drawWaveform(blocks.DATA, meta);
-        this.frameCount++;
-        if (this.frameCount % 10 === 0) {
-          this.log('stream seq=' + seq + ' id=' + streamId + ' count=' + meta.count);
-        }
+    if (opcode === 0x01 || blocks.META) {
+      try { 
+        const meta = JSON.parse(new TextDecoder().decode(blocks.META));
+        this.metaCache[streamId] = meta; 
+        this.log('Got SNAPSHOT (with META) for stream ' + streamId);
+      } catch (e) { 
+        this.log('bad meta: ' + e); return; 
+      }
+    }
+
+    const meta = this.metaCache[streamId];
+    if (!meta) return;
+
+    if (meta.kind === 'waveform' && blocks.DATA) {
+      this.drawWaveform(blocks.DATA, meta);
+      this.frameCount++;
+      if (this.frameCount % 10 === 0) {
+        this.log(`stream seq=${seq} id=${streamId} opcode=${opcode === 1 ? 'SNAP' : 'DELTA'}`);
       }
     }
   }
@@ -91,33 +106,85 @@ class WaveformClient {
     const proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
     const base = proto + location.host;
 
-    this.wsTxt = new WebSocket(base + '/control', ['control']);
+    this.sessionId = 'sid-' + Math.random().toString(36).substring(2, 9);
+
+    this.wsTxt = new WebSocket(base + '/control?sid=' + this.sessionId);
     this.wsTxt.onopen = () => {
-      this.log('[control] open');
+      this.log('[control] open (sid=' + this.sessionId + ')');
       this.wsTxt.send(JSON.stringify({v:1, type:'cmd', id:'c-0001', name:'hello',
         payload:{proto:1, client:'web/1.0.0', caps:['stream']}, ts: Date.now()}));
       this.wsTxt.send(JSON.stringify({v:1, type:'cmd', id:'c-0002', name:'subscribe',
-        payload:{streams:['waveform']}, ts: Date.now()}));
+        payload:{streams:[1]}, ts: Date.now()}));
+      this.subscribedStreams.add(1);
+
+      this.btnStart.disabled = false; // 握手成功后，允许点击开始采集
+
+      if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = setInterval(() => {
+        if (this.wsTxt && this.wsTxt.readyState === WebSocket.OPEN) {
+          this.wsTxt.send(JSON.stringify({
+            v:1, type:'cmd', id:'c-ping-' + Date.now(), name:'ping', payload:{}, ts: Date.now()
+          }));
+        }
+      }, 5000);
     };
-    this.wsTxt.onmessage = (ev) => this.log('[control] ' + ev.data);
-    this.wsTxt.onclose = () => this.log('[control] closed');
+    
+    this.wsTxt.onmessage = (ev) => {
+        this.log('[control] ' + ev.data);
+        try {
+            const msg = JSON.parse(ev.data);
+            if (msg.type === 'ack' && msg.name === 'start') {
+                this.isSampling = true;
+                this.btnStart.textContent = '停止采集';
+                this.statusEl.textContent = '正在采集...';
+            } else if (msg.type === 'ack' && msg.name === 'stop') {
+                this.isSampling = false;
+                this.btnStart.textContent = '开始采集';
+                this.statusEl.textContent = '已连接（空闲）';
+            }
+        } catch(e) {}
+    };
+    
+    this.wsTxt.onclose = () => { 
+      this.log('[control] closed'); 
+      if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+      this.btnStart.disabled = true;
+      this.btnStart.textContent = '开始采集';
+      this.isSampling = false;
+    };
     this.wsTxt.onerror = () => this.log('[control] error');
 
-    this.wsBin = new WebSocket(base + '/stream', ['stream']);
+    this.wsBin = new WebSocket(base + '/stream?sid=' + this.sessionId);
     this.wsBin.binaryType = 'arraybuffer';
-    this.wsBin.onopen = () => { this.log('[stream] open'); this.statusEl.textContent = '已连接'; this.frameCount = 0; };
+    this.wsBin.onopen = () => { this.log('[stream] open'); this.statusEl.textContent = '已连接（空闲）'; this.frameCount = 0; };
     this.wsBin.onmessage = (ev) => this.onBinaryMessage(ev);
     this.wsBin.onclose = () => { this.log('[stream] closed'); this.statusEl.textContent = '未连接'; };
     this.wsBin.onerror = () => this.log('[stream] error');
   }
 
   disconnect() {
+    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
     if (this.wsBin) { this.wsBin.close(); this.wsBin = null; }
     if (this.wsTxt) { this.wsTxt.close(); this.wsTxt = null; }
     this.statusEl.textContent = '未连接';
+    this.subscribedStreams.clear();
+    this.metaCache = {};
+    this.btnStart.disabled = true;
+    this.btnStart.textContent = '开始采集';
+    this.isSampling = false;
+  }
+
+  toggleSampling() {
+    if (!this.wsTxt || this.wsTxt.readyState !== WebSocket.OPEN) return;
+    const cmd = this.isSampling ? 'stop' : 'start';
+    this.wsTxt.send(JSON.stringify({
+        v: 1, type: 'cmd', id: 'c-' + Date.now(), name: cmd, payload: {}, ts: Date.now()
+    }));
+    // 注意：这里不直接修改 isSampling，等收到 ack 后再修改，保证闭环
   }
 }
 
 const client = new WaveformClient();
 document.getElementById('btnConnect').onclick = () => client.connect();
 document.getElementById('btnDisconnect').onclick = () => client.disconnect();
+document.getElementById('btnStart').onclick = () => client.toggleSampling();
