@@ -1,4 +1,4 @@
-// v1 底座客户端：REST 控制/查询 + WS 事件与数据流。
+// v1 通讯层客户端：REST 控制/查询 + WS 事件与数据流。
 // 会话是 1:1 的，WS 必须先建立，REST 才带得上 X-Session-Id。
 
 export class ApiError extends Error {

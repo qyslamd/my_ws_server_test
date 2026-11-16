@@ -3,13 +3,13 @@
 > 已于 2026-11-16 随三线归一合入 `main`（合并提交 b957457），原 `feature/eph205-web`
 > 分支已删除，`main` 是唯一主线；仓库为 public。分支历程见 git 历史。
 > 对照物：`D:\sb\eph205\workspace\eph2805-new`（Qt5 版）。
-> 底座文档：`docs/spec/ws-protocol-v1.md`、`docs/spec/v1-checklist.md`。
+> 通讯层文档：`docs/spec/ws-protocol-v1.md`、`docs/spec/v1-checklist.md`。
 
 ---
 
 ## 1. 目标
 
-用 v1 通讯底座 + 浏览器 UI 复刻 Qt 版**当前已有**的功能：
+用 v1 通讯层 + 浏览器 UI 复刻 Qt 版**当前已有**的功能：
 
 - 连接/断开、设备信息、模式与参数
 - 测试项导入、批量测量、进度、通过率、逐项判定
@@ -24,8 +24,8 @@
 ## 2. 结构
 
 ```text
-apps/v1/base/                 业务无关通讯底座
-apps/v1/main.cpp              纯底座入口 -> v1_server.exe
+apps/v1/base/                 业务无关通讯层
+apps/v1/main.cpp              纯通讯层入口 -> v1_server.exe
 apps/v1/modules/eph205/       EPH205 业务模块
   protocol.*                  帧编解码 AA 55 CMD LEN DATA SUM8
   serial_port.*               Win32 串口 + 端口枚举
@@ -34,8 +34,8 @@ apps/v1/modules/eph205/       EPH205 业务模块
   measurement_store.*         SQLite 落库（measurements.db）+ CSV 导出
   eph205_module.*             v1::Module 实现（命令/参数/作业/流）
   main_eph205.cpp             业务实例入口 -> eph205_server.exe
-apps/v1/www/                  v1 静态根：/ 底座自检页、/eph205/ 产品前端
-  index.html app.js style.css 底座自检页（调 capabilities/modules/streams）
+apps/v1/www/                  v1 静态根：/ 通讯层自检页、/eph205/ 产品前端
+  index.html app.js style.css 通讯层自检页（调 capabilities/modules/streams）
   eph205/                     EPH205 前端（原生 ES module + CSS，无构建）
     vendor/                   three.js 与 SheetJS 的本地副本
     help3d/                   三维资产
@@ -44,7 +44,7 @@ apps/mongoose_c/              mongoose 纯 C 教学 demo（单文件）
 apps/mongoose_cpp/            mongoose 双通道波形 demo（自带页面 www/）
 ```
 
-底座与业务的分界：底座把 `base/` 编成 `v1_base.lib`，业务实例自带 `main`。
+通讯层与业务的分界：通讯层把 `base/` 编成 `v1_base.lib`，业务实例自带 `main`。
 `v1_server.exe` 里没有任何设备代码。
 
 ---
@@ -100,7 +100,7 @@ vendor/           three.module.js + three.core.js + 三个 addon + xlsx.full.min
 
 ## 4. 对外 API
 
-底座通用（任何模块都能用）：
+通讯层通用（任何模块都能用）：
 
 ```text
 GET  /api/v1/capabilities|time|health
@@ -257,7 +257,7 @@ python -I tools\edge_webdriver\eph205_e2e.py :: 真实 UI：仿真→连接→�
 
 ## 11. 实时读数（WS 数据流）
 
-测量过程中，模块把每条结果压进 `readings_`，底座每 10 ms 取一次，
+测量过程中，模块把每条结果压进 `readings_`，通讯层每 10 ms 取一次，
 按 v1 帧格式推给订阅者：
 
 ```text
@@ -267,14 +267,14 @@ records 块  重复的 [ts u64][len u32][payload]，payload 是一个 JSON 对�
 
 前端 `lib/api.js` 的 `parseFrame` 解析 24 字节头与各块，`api.onStream` 分发；
 `pages/measure.js` 订阅 id 1，收到后立刻发 `{type:"credit"}` 归还窗口，
-否则窗口（默认 4 MB）用完后底座会停推。
+否则窗口（默认 4 MB）用完后通讯层会停推。
 
 调试页的「原始命令」走 `raw`：服务端除正常应答外也接受 ACK（0x80），
 所以发未实现的命令（如 0x07 点检）能直接看到「命令不支持」而不是超时。
 
 ## 12. 登录与角色
 
-两个内置账号（底座 `/api/v1/auth/*`）：
+两个内置账号（通讯层 `/api/v1/auth/*`）：
 
 | 账号 | 角色 | 能做什么 |
 |---|---|---|
@@ -292,8 +292,8 @@ sim_start sim_stop sim_set sim_config sim_clear history_delete
 界面同时隐藏「调试」页、禁用仿真按钮、隐藏历史删除。
 两边都要有——只隐藏界面等于没有权限。
 
-底座的钩子是 `v1::Module::AdminOnly(action)`，默认返回 false，
-不带认证时底座不调用它，所以对其它业务模块零影响。
+通讯层的钩子是 `v1::Module::AdminOnly(action)`，默认返回 false，
+不带认证时通讯层不调用它，所以对其它业务模块零影响。
 
 ## 13. 三维视图
 
@@ -316,5 +316,5 @@ sim_start sim_stop sim_set sim_config sim_clear history_delete
   `main` 是唯一主线，不要再建长期分支。
 - 参考项目只读，不要把它整段业务代码粘进来。
 - 串口是独占资源：上一个会话没断开时，另一个进程打不开同一端口。
-- WS 断开会让底座执行 SAFE_STOP（模块 `Stop`），这是设计行为；
+- WS 断开会让通讯层执行 SAFE_STOP（模块 `Stop`），这是设计行为；
   仿真器不受影响，需要单独停。

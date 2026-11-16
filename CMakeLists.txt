@@ -59,7 +59,7 @@ add_subdirectory(apps/mongoose_cpp)
 add_subdirectory(apps/mongoose_c)
 
 # ============================================================
-# 子目标:v1 业务无关通讯底座(纯 C/C++,零 Qt)
+# 子目标:v1 业务无关通讯层(纯 C/C++,零 Qt)
 # ============================================================
 add_subdirectory(apps/v1)
 

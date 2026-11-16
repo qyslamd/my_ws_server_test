@@ -56,7 +56,7 @@ EPH205.exe
 │    └─ CefBrowser ──► http://127.0.0.1:<随机端口>/eph205/?v=...
 │
 ├─ server 线程                mongoose 事件循环
-│    └─ v1 底座（HTTP/WS、会话、作业、静态文件）
+│    └─ v1 通讯层（HTTP/WS、会话、作业、静态文件）
 │         └─ eph205 模块（命令/参数/作业/读数流）
 │
 ├─ module worker 线程         串口事务（连接、测量、重试）
@@ -82,7 +82,7 @@ server_thread.join();
 ```
 
 `V1Server` 需要补一个 `Stop()` 和一个 `running_` 标志（约 15 行）。
-这是整个方案里唯一要动底座的地方。
+这是整个方案里唯一要动通讯层的地方。
 
 ### 3.2 端口
 
@@ -162,7 +162,7 @@ target_include_directories(${TARGET_NAME} PRIVATE ${CEF_INCLUDE_DIRS})
 target_link_libraries(${TARGET_NAME} PRIVATE
   libcef_lib          # FindCEF.cmake 提供的导入目标
   libcef_dll_wrapper  # 见下
-  v1_base             # 通讯底座
+  v1_base             # 通讯层
   eph205_module       # 业务模块
 )
 
@@ -232,7 +232,7 @@ int main(int argc, char* argv[]) {
 10. CefShutdown → 退出
 ```
 
-第 8→9 的顺序很重要：浏览器先关，WS 自然断开，底座的 SAFE_STOP 会
+第 8→9 的顺序很重要：浏览器先关，WS 自然断开，通讯层的 SAFE_STOP 会
 把正在跑的模块停掉；然后我们再做一次显式 Stop 兜底。**关窗口 = 安全停机**，
 这是这套架构白送的好处。
 
@@ -303,7 +303,7 @@ cefclient 把这些 handler 拆在 `tests/shared/browser/client_app_browser.cc`
 | 目录 | 服务端从 `www/` 读（现状）                  | 开发调试，改完刷新即生效 |
 | 内嵌 | `www/` 打成 RCDATA 编进 exe，服务端从内存取 | 发布：客户看不到、删不掉 |
 
-内嵌需要给底座加一个约 80 行的 `ResourceStaticHandler`：
+内嵌需要给通讯层加一个约 80 行的 `ResourceStaticHandler`：
 按请求路径查嵌入表 → 返回内容 + Content-Type。
 文件总量约 7.5 MB（含 help3d 的 OBJ/MTL 4.6 MB 和 vendor 3.1 MB），
 压进 exe 后 exe 约 9 MB，可接受。
@@ -322,7 +322,7 @@ cefclient 把这些 handler 拆在 `tests/shared/browser/client_app_browser.cc`
 
 ### 8.3 关窗即安全停机
 
-浏览器关闭 → WS 断开 → 底座 `SafeStop` → 模块 `Stop()`（断串口、取消作业）。
+浏览器关闭 → WS 断开 → 通讯层 `SafeStop` → 模块 `Stop()`（断串口、取消作业）。
 这条路径已经在 Edge 里验证过（每次关标签页都会触发），CEF 里同样成立。
 
 ---
@@ -332,7 +332,7 @@ cefclient 把这些 handler 拆在 `tests/shared/browser/client_app_browser.cc`
 QCefView 提供的是 `CefMessageRouter`：页面 `window.cefQuery(...)` → C++ 处理。
 我们能不用就不用，理由是：
 
-1. 现有页面已经通过 HTTP/WS 和底座通信，接口齐全；
+1. 现有页面已经通过 HTTP/WS 和通讯层通信，接口齐全；
 2. 桥会把"通信模型"分裂成两套（HTTP 一套、桥一套），维护成本翻倍；
 3. 桥跑在 UI 线程，长操作会卡界面，等于把已经解决的无阻塞问题又引回来。
 
@@ -504,7 +504,7 @@ Ctrl+R: 页面没有刷新
 
 ### 和方案不一致 / 尚未做的
 
-1. **www 还是目录形态**，没有嵌进 exe。原因：嵌入需要给底座加一个
+1. **www 还是目录形态**，没有嵌进 exe。原因：嵌入需要给通讯层加一个
    资源静态处理器（约 80 行）+ 12 个文件的 RC 清单，这次先保证主链路。
    现在发布包里 `www\` 是可见的（客户能删），下一轮补。
 2. **加载失败没有错误页**。服务端起不来的极端情况下是白屏（正常情况下

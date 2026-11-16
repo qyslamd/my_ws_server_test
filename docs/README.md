@@ -37,7 +37,7 @@ todo/
 ## 仓库顶层（页面归各自的 app，不设顶层 www）
 
 ```text
-apps/v1/            底座 + 产品：base、modules/eph205、www/（静态根）
+apps/v1/            通讯层 + 产品：base、modules/eph205、www/（静态根）
 apps/cef_client_shell/  CEF 客户端外壳（业务无关，产物 EPH205.exe）
 apps/mongoose_c/    mongoose 纯 C 教学 demo（页面内嵌在源码里）
 apps/mongoose_cpp/  mongoose 双通道波形 demo（页面在自带 www/）

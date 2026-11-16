@@ -37,7 +37,7 @@ export function createLoginPage({ api, onLogin }) {
       el('h1', { text: '综合测试系统' }),
       el('p', {
         class: 'tagline',
-        text: '电阻导通、多路切换与批量判定：一套底座同时支撑浏览器与桌面两种形态。',
+        text: '电阻导通、多路切换与批量判定：一套通讯层同时支撑浏览器与桌面两种形态。',
       }),
       el(
         'div',

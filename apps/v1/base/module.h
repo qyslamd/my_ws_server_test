@@ -8,7 +8,7 @@
 
 namespace v1 {
 
-// 通讯底座只认识这个接口；具体设备/协议全部由业务模块实现。
+// 通讯层只认识这个接口；具体设备/协议全部由业务模块实现。
 struct StreamInfo {
   uint32_t id = 0;
   std::string name;
@@ -33,8 +33,8 @@ class Module {
                        const nlohmann::json& payload,
                        nlohmann::json& result, std::string& err) = 0;
 
-  // 底座是否要求 admin 角色才能执行该命令。
-  // 默认全部放行；业务模块按自己的语义声明，底座只在启用认证时生效。
+  // 通讯层是否要求 admin 角色才能执行该命令。
+  // 默认全部放行；业务模块按自己的语义声明，通讯层只在启用认证时生效。
   virtual bool AdminOnly(const std::string& /*action*/) const { return false; }
 
   virtual nlohmann::json GetParams(const std::string& scope) const = 0;
@@ -61,8 +61,8 @@ class Module {
   virtual nlohmann::json Logs() const = 0;
 };
 
-// 媒体由业务模块注册；底座只负责按 id 取帧并通过 HTTP 提供。
-// 这样"视频走 HTTP"是底座能力，BMP/JPEG/RTSP 的具体格式属于业务。
+// 媒体由业务模块注册；通讯层只负责按 id 取帧并通过 HTTP 提供。
+// 这样"视频走 HTTP"是通讯层能力，BMP/JPEG/RTSP 的具体格式属于业务。
 class MediaSource {
  public:
   virtual ~MediaSource() = default;

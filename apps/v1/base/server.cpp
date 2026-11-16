@@ -629,7 +629,7 @@ void V1Server::OnHttp(mg_connection* c, mg_http_message* hm) {
   }
 
   struct mg_http_serve_opts opts = {};
-  // 静态根归底座自己(apps/v1/www):/ 是底座自检页,/eph205/ 是产品前端。
+  // 静态根归通讯层自己(apps/v1/www):/ 是通讯层自检页,/eph205/ 是产品前端。
   // 构建时由 copy_www 复制到 build/www,所以这里用相对工作目录的 "www"。
   opts.root_dir = "www";
   mg_http_serve_dir(c, hm, &opts);
@@ -845,7 +845,7 @@ void V1Server::Tick() {
     const uint64_t payload = data.size() + records.size();
     if (payload > available) {
       // 单帧不能拆分，允许超发一帧，欠账最多超出 window 一帧。
-      // 规范的做法是底座持有环形缓冲、溢出报 overrun；这里还没有缓冲层。
+      // 规范的做法是通讯层持有环形缓冲、溢出报 overrun；这里还没有缓冲层。
       Log("stream " + std::to_string(id) + " 单帧 " + std::to_string(payload) +
           " B 超过可用额度 " + std::to_string(available) + " B，超发一帧");
     }

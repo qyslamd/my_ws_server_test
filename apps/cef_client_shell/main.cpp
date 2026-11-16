@@ -2,7 +2,7 @@
 //
 // 进程结构：
 //   UI 线程      CEF 消息循环 + 窗口
-//   server 线程  v1 底座（HTTP/WS）
+//   server 线程  v1 通讯层（HTTP/WS）
 //   其余线程     由业务模块自己管理（串口、仿真）
 //
 // 关窗顺序：CloseBrowser → OnBeforeClose → CefQuitMessageLoop →
@@ -180,7 +180,7 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int) {
 
   CefRunMessageLoop();
 
-  // 关窗 -> 浏览器关闭 -> WS 断开 -> 底座 SafeStop，这里再显式停一次兜底
+  // 关窗 -> 浏览器关闭 -> WS 断开 -> 通讯层 SafeStop，这里再显式停一次兜底
   server->Stop();
   server_thread.join();
 

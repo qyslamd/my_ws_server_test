@@ -121,7 +121,7 @@ export function createHelpPage() {
         section(
           '技术栈',
           list([
-            '服务端：C++17，v1 通讯底座（Mongoose + nlohmann/json），零 Qt。',
+            '服务端：C++17，v1 通讯层（Mongoose + nlohmann/json），零 Qt。',
             '设备链路：Win32 串口，com0com 虚拟串口对做仿真。',
             '前端：原生 ES module + CSS，无框架、无构建；three.js 与 SheetJS 本地 vendor。',
             '控制/查询：HTTP REST；进度与事件：WebSocket。',

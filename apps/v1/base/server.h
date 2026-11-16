@@ -15,7 +15,7 @@ struct mg_mgr;
 
 namespace v1 {
 
-// 业务无关的通讯底座：HTTP/WS、会话、订阅、帧、作业路由、Blob、配置、认证。
+// 业务无关的通讯层：HTTP/WS、会话、订阅、帧、作业路由、Blob、配置、认证。
 // 具体设备/协议通过 Module / MediaSource 注册进来。
 class V1Server {
  public:

@@ -93,10 +93,10 @@ python -I tools/edge_webdriver/edge_auto.py
 - 读取 `#status`、`#capabilities`、`#modules`、`#streams`、`#log`；
 - 截图 `temp/edge_auto.png`。
 
-底座无业务模块时的实测输出：
+通讯层无业务模块时的实测输出：
 
 ```text
-title: v1 通讯底座
+title: v1 通讯层
 status: sid-...
 capabilities: { "caps": [ "credit", "frag", "jobs", "blobs" ... ] }
 modules: { "modules": [] }

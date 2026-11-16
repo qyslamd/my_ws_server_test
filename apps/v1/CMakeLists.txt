@@ -1,11 +1,11 @@
 # ============================================================
-# v1 业务无关通讯底座（纯 C/C++，零 Qt）
+# v1 业务无关通讯层（纯 C/C++，零 Qt）
 #
 # base/           HTTP/WS、会话、帧、订阅、作业路由、Blob、配置、认证
-# main.cpp        纯底座入口：不含任何设备代码
+# main.cpp        纯通讯层入口：不含任何设备代码
 #
-# 底座编成静态库，业务实例各自带 main：
-#   v1_server        只有底座（develop 上就到这里）
+# 通讯层编成静态库，业务实例各自带 main：
+#   v1_server        只有通讯层（develop 上就到这里）
 #   eph205_server    EPH205 业务实例（仅本地分支）
 # ============================================================
 set(MONGOOSE_DIR "${CMAKE_SOURCE_DIR}/3rdparty/mongoose-7.23")
@@ -70,7 +70,7 @@ if(MSVC)
   target_compile_options(eph205_module PRIVATE /utf-8 /W4 /WX-)
 endif()
 
-# 服务端形态：底座 + 模块 + main
+# 服务端形态：通讯层 + 模块 + main
 add_executable(eph205_server modules/eph205/main_eph205.cpp)
 target_link_libraries(eph205_server PRIVATE eph205_module)
 if(MSVC)

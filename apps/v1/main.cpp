@@ -14,7 +14,7 @@ int main(int argc, char** argv) {
     }
   }
 
-  // 业务无关的通讯底座：业务模块通过 RegisterModule / RegisterMediaSource
+  // 业务无关的通讯层：业务模块通过 RegisterModule / RegisterMediaSource
   // 注册进来。本仓库不包含任何具体设备或项目代码。
   v1::V1Server server(port, auth_required);
   server.Run();

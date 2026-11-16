@@ -15,12 +15,12 @@
 
 | 部分                | 位置                      | 职责                                                                                                          |
 | ------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| **v1 通讯底座**     | `apps/v1/base/`           | 通用的设备上位机框架：HTTP 接口、WebSocket 推送、会话、作业、订阅与流控。**不含任何设备代码**，换产品只换模块 |
+| **v1 通讯层**       | `apps/v1/base/`           | 通用的设备上位机框架：HTTP 接口、WebSocket 推送、会话、作业、订阅与流控。**不含任何设备代码**，换产品只换模块 |
 | **EPH205 业务模块** | `apps/v1/modules/eph205/` | 串口协议、命令、批量测量、结果判定、历史落库                                                                  |
 
-"**模块**"是底座的扩展点：业务方实现一个接口（`v1::Module`，见
-`apps/v1/base/module.h`），把它注册进底座，就得到一套完整的 REST + 推送
-服务。底座自己不知道"电阻"是什么。
+"**模块**"是通讯层的扩展点：业务方实现一个接口（`v1::Module`，见
+`apps/v1/base/module.h`），把它注册进通讯层，就得到一套完整的 REST + 推送
+服务。通讯层自己不知道"电阻"是什么。
 
 另外三个程序是**学习与对照用的 demo**，不属于产品：
 
@@ -37,9 +37,9 @@
 - 分支只有 `main`（2026-11-16 起）。`develop`、`feature/*` 已删除，不要再建长期分支。
 - 里程碑 M0–M5 全部完成：垂直切片、实时数据流、三维视图、Excel 导入、登录与角色、历史对比与批量导出。
 - 已知缺口（都记在文档里，不是遗忘）：
-  - 底座不持有环形缓冲，所以"来不及发送而丢弃数据"无法上报为 `core.overrun` 事件；
+  - 通讯层不持有环形缓冲，所以"来不及发送而丢弃数据"无法上报为 `core.overrun` 事件；
     模块自己的 `readings_` 队列满 4096 条时是静默丢弃（`eph205_module.cpp`）。
-  - 非法的 `credit` 消息只被忽略，没有回 `core.error`（底座错误通道尚未建立）。
+  - 非法的 `credit` 消息只被忽略，没有回 `core.error`（通讯层错误通道尚未建立）。
   - 自动化脚本 `tools/edge_webdriver/eph205_e2e.py` 里还有几处按旧界面写的选择器
     （用 `.tag` 类找"管理员/操作员"标识，新界面是 `.chip`），跑之前需要先更新。
   - Qt QWidget 前端只有方案没有实现，见 `docs/plan/web与Qt双前端策略.md`。
@@ -83,8 +83,8 @@ build-client\EPH205.exe
 ## 4. 仓库结构
 
 ```text
-apps/v1/base/                 通讯底座：HTTP/WS、会话、作业、订阅与流控
-apps/v1/main.cpp              纯底座入口            -> v1_server.exe
+apps/v1/base/                 通讯层：HTTP/WS、会话、作业、订阅与流控
+apps/v1/main.cpp              纯通讯层入口          -> v1_server.exe
 apps/v1/modules/eph205/       EPH205 业务模块
   protocol.*                  设备协议编解码 AA 55 CMD LEN DATA SUM8
   serial_port.*               Win32 串口读写与端口枚举
@@ -94,7 +94,7 @@ apps/v1/modules/eph205/       EPH205 业务模块
   eph205_module.*             v1::Module 实现：命令/参数/作业/流
   main_eph205.cpp             业务实例入口          -> eph205_server.exe
 apps/v1/www/                  静态根，构建时复制到 build\www
-  index.html …                底座自检页（/）
+  index.html …                通讯层自检页（/）
   eph205/                     产品前端（/eph205/），原生 ES module + CSS，无构建
 apps/cef_client_shell/        桌面客户端外壳        -> EPH205.exe
 apps/mongoose_c/              mongoose 纯 C 教学 demo     -> mongoose_c_demo.exe
@@ -114,7 +114,7 @@ tools/                        构建、打包、自动化脚本
 | 程序                      | 端口                      | 说明                                            |
 | ------------------------- | ------------------------- | ----------------------------------------------- |
 | `eph205_server.exe`       | 8790（默认，可传参改）    | 产品服务端                                      |
-| `v1_server.exe`           | 8770（默认）              | 纯底座，无业务模块                              |
+| `v1_server.exe`           | 8770（默认）              | 纯通讯层，无业务模块                            |
 | `EPH205.exe`（客户端）    | 8791 起，占用则顺延 20 个 | 进程内起同一个服务端；可用 `--port=8791` 改起点 |
 | `mongoose_cpp_demo.exe`   | 8765                      | demo                                            |
 | `mongoose_c_demo.exe`     | 8766                      | demo                                            |
@@ -127,7 +127,7 @@ tools/                        构建、打包、自动化脚本
 data/eph205/measurements.db    测量记录（SQLite，WAL 模式）
 data/eph205/*.imported         旧版 JSONL 自动导入后改名留档
 <exe 同级>/exports/            客户端导出 CSV 的落盘目录
-v1_config.json                 底座参数持久化（工作目录下）
+v1_config.json                 通讯层参数持久化（工作目录下）
 ```
 
 ---

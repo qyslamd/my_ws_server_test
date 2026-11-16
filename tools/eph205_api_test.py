@@ -130,7 +130,7 @@ def command(action, payload=None):
 
 
 def main():
-    print(f"底座 {BASE}")
+    print(f"通讯层 {BASE}")
     sock = ws_connect(BASE)
     sock.settimeout(20)
     print("  WS 会话已建立 sid=" + SID)

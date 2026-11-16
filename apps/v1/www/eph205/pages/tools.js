@@ -201,7 +201,7 @@ export function createToolsPage({ getState, refresh }) {
         el('div', { class: 'card-header' },
           el('div', {},
             el('h3', { class: 'card-title' },
-              el('span', { class: 'row', style: { gap: '8px' } }, iconEl('activity', 'sm'), '底座日志')),
+              el('span', { class: 'row', style: { gap: '8px' } }, iconEl('activity', 'sm'), '通讯层日志')),
             el('p', { class: 'card-subtitle' }, '会话、订阅与安全停机记录'))),
         serverLog,
       ),

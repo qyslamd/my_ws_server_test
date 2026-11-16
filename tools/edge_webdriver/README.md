@@ -1,7 +1,7 @@
 # Edge 自动化调试脚本
 
 基于 Python 标准库，直接使用 EdgeDriver / CDP，不依赖 Selenium。
-适用于任意实现 v1 协议的页面（当前底座自带一个通用状态页）。
+适用于任意实现 v1 协议的页面（当前通讯层自带一个通用状态页）。
 
 ## 依赖
 
@@ -34,10 +34,10 @@ v1_server.exe 8780
 python -I tools/edge_webdriver/edge_auto.py
 ```
 
-实测输出（底座无业务模块）：
+实测输出（通讯层无业务模块）：
 
 ```text
-title: v1 通讯底座
+title: v1 通讯层
 status: sid-...
 capabilities: { "caps": [ "credit", "frag", "jobs", "blobs" ... ] }
 modules: { "modules": [] }
