@@ -93,7 +93,7 @@ add_subdirectory(src/framework/v1)
 # ============================================================
 # 子目标：EPH205 产品（模块 + 页面 + 入口）
 # ============================================================
-#add_subdirectory(src/apps/eph205)
+add_subdirectory(src/apps/eph205)
 
 # ============================================================
 # 子目标：示例
@@ -134,5 +134,5 @@ if(BUILD_CEF_SHELL)
   # wrapper 从源码编译，保证和我们的 CRT/编译选项一致
   add_subdirectory(${CEF_LIBCEF_DLL_WRAPPER_PATH} libcef_dll_wrapper EXCLUDE_FROM_ALL)
   add_subdirectory(src/common/cef_shell)
-  # add_subdirectory(src/apps/eph205_app)
+  add_subdirectory(src/apps/eph205_app)
 endif()
