@@ -57,8 +57,8 @@ class Eph205Module : public v1::Module {
     return scope == "eph205";
   }
 
-  bool Produce(uint32_t stream_id, uint64_t now_ms, std::vector<uint8_t>& data,
-               std::vector<uint8_t>& records, std::string& meta) override;
+  // 通讯层注册时把推送口交进来；拿到之后读数直接推到缓冲，不再自己排队
+  void AttachSink(v1::StreamSink* sink) override;
 
   bool StartJob(const std::string& type, const nlohmann::json& input,
                 std::string& job_id, std::string& err) override;
@@ -133,7 +133,8 @@ class Eph205Module : public v1::Module {
   nlohmann::json last_params_;
   std::deque<std::string> logs_;
   std::deque<std::pair<std::string, nlohmann::json>> events_;
-  std::deque<nlohmann::json> readings_;
+  // 读数的缓冲在通讯层，这里只留一个推送口
+  v1::StreamSink* sink_ = nullptr;
   std::shared_ptr<Job> job_;
 
   std::vector<v1::StreamInfo> streams_;

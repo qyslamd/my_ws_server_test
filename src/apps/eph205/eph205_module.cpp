@@ -7,14 +7,13 @@
 #include <filesystem>
 #include <set>
 
-#include "base/frame.h"
+#include "base/stream_sink.h"
 
 namespace eph205 {
 
 namespace {
 
 constexpr std::uint32_t kReadingStreamId = 1;
-constexpr int kMaxReadingsPerFrame = 64;
 constexpr int kMaxLogs = 300;
 constexpr int kDeviceCommandTimeoutMs = 4000;
 constexpr int kConnectTimeoutMs = 8000;
@@ -972,12 +971,26 @@ void Eph205Module::PushEvent(const std::string& name, nlohmann::json payload) {
   events_.emplace_back(name, std::move(payload));
 }
 
-void Eph205Module::PushReading(const nlohmann::json& reading) {
+void Eph205Module::AttachSink(v1::StreamSink* sink) {
   std::lock_guard<std::mutex> lock(mu_);
-  readings_.push_back(reading);
-  while (readings_.size() > 4096) {
-    readings_.pop_front();
+  sink_ = sink;
+}
+
+// 读数直接推到通讯层的缓冲，模块自己不再排队：
+// 缓冲满了丢哪一帧、怎么上报，由通讯层统一负责（规范 §8.1）
+void Eph205Module::PushReading(const nlohmann::json& reading) {
+  v1::StreamSink* sink = nullptr;
+  {
+    std::lock_guard<std::mutex> lock(mu_);
+    sink = sink_;
   }
+  if (sink == nullptr) {
+    return;
+  }
+  const std::string text = reading.dump();
+  v1::Record record;  // 时间戳留 0，由通讯层补
+  record.payload.assign(text.begin(), text.end());
+  sink->PushRecords(kReadingStreamId, {record});
 }
 
 void Eph205Module::FinishJob(const std::shared_ptr<Job>& job) {
@@ -1280,34 +1293,6 @@ bool Eph205Module::CancelJob(const std::string& id, std::string& err,
   }
   job_->cancel.store(true);
   payload = {{"jobId", id}, {"cancelling", true}};
-  return true;
-}
-
-// -------------------------------------------------------------------- 数据流
-
-bool Eph205Module::Produce(uint32_t stream_id, uint64_t now_ms,
-                           std::vector<uint8_t>& data,
-                           std::vector<uint8_t>& records,
-                           std::string& /*meta*/) {
-  if (stream_id != kReadingStreamId) {
-    return false;
-  }
-  std::lock_guard<std::mutex> lock(mu_);
-  if (readings_.empty()) {
-    return false;
-  }
-  // 按 v1 规范：records 块是重复的 [ts u64][len u32][payload]
-  std::vector<uint8_t> out;
-  int count = 0;
-  const uint64_t ts_ns = now_ms * 1000000ULL;
-  while (!readings_.empty() && count < kMaxReadingsPerFrame) {
-    const std::string text = readings_.front().dump();
-    const std::vector<uint8_t> payload(text.begin(), text.end());
-    v1::AppendRecord(out, ts_ns, payload);
-    readings_.pop_front();
-    ++count;
-  }
-  records.swap(out);
   return true;
 }
 

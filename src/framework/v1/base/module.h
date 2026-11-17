@@ -7,6 +7,8 @@
 
 namespace v1 {
 
+class StreamSink;
+
 // 通讯层只认识这个接口；具体设备/协议全部由业务模块实现。
 struct StreamInfo {
   uint32_t id = 0;
@@ -22,6 +24,9 @@ class Module {
   virtual std::string ns() const = 0;
   virtual const std::vector<StreamInfo>& streams() const = 0;
   virtual bool running() const = 0;
+
+  // 通讯层在注册时把推送口交给模块。模块不实现也能编译，只是不产生数据。
+  virtual void AttachSink(StreamSink* /*sink*/) {}
 
   virtual bool Start(std::string& err) = 0;
   virtual bool Stop(std::string& err) = 0;
@@ -41,10 +46,8 @@ class Module {
                          std::string& err) = 0;
   virtual bool OwnsParamScope(const std::string& scope) const = 0;
 
-  // 生产一帧：data/records 二选一，meta 为该流的描述。
-  virtual bool Produce(uint32_t stream_id, uint64_t now_ms,
-                       std::vector<uint8_t>& data,
-                       std::vector<uint8_t>& records, std::string& meta) = 0;
+  // 数据一律通过 AttachSink 拿到的推送口写入通讯层缓冲，
+  // "服务端来拉"那套已经删掉：缓冲在哪、丢哪一帧，只有通讯层说了算。
 
   virtual bool StartJob(const std::string& type, const nlohmann::json& input,
                         std::string& job_id, std::string& err) = 0;

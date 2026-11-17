@@ -32,6 +32,14 @@ constexpr uint16_t kCloseSessionEnd = 4100;
 // 继续堆只会让心跳也排不出去
 constexpr uint64_t kSendQueueBytes = 64ull * 1024 * 1024;
 
+// state 每 tick 的发送闸。state 不参与配额，没有这道闸的话，
+// 一路刷得勤的状态流就能把发送队列占满，把整场会话带下去（方案第六节）
+constexpr std::size_t kMaxStateFramesPerTick = 8;
+constexpr std::size_t kMaxStateBytesPerTick = 256 * 1024;
+
+// 一条会话里所有环合计的预算（字节区 + 描述符），规范 §8.4
+constexpr std::size_t kRingTotalBytes = 64u * 1024 * 1024;
+
 struct ClientCtx {
   std::string sid;
   bool is_ws = false;
@@ -137,7 +145,59 @@ V1Server::~V1Server() {
 void V1Server::RegisterModule(Module* module) {
   if (module != nullptr) {
     modules_[module->ns()] = module;
+    // 推送口由通讯层提供，模块只拿到基类指针
+    module->AttachSink(&sink_);
   }
+}
+
+std::size_t V1Server::BufferBytesFor(const std::string& cls) {
+  // 规范 §8.4 的默认值：record 比 sample 大一倍
+  return cls == "record" ? 8u * 1024 * 1024 : 4u * 1024 * 1024;
+}
+
+std::shared_ptr<v1::StreamBuffers> V1Server::Sink::Buffers() const {
+  // 先拷一份 shared_ptr 再出锁：会话在中间被销毁也不影响这次写入，
+  // 缓冲对象会活到最后一个引用释放为止
+  std::lock_guard<std::mutex> lock(server_->buffers_mutex_);
+  return server_->active_buffers_;
+}
+
+bool V1Server::Sink::PushSample(uint32_t stream_id, const uint8_t* data,
+                                std::size_t len) {
+  const auto buffers = Buffers();
+  if (buffers == nullptr) {
+    return false;
+  }
+  return buffers->PushFrame(stream_id, data, len, mg_millis() * 1000000ULL);
+}
+
+bool V1Server::Sink::PushRecords(uint32_t stream_id,
+                                 const std::vector<Record>& records) {
+  const auto buffers = Buffers();
+  if (buffers == nullptr) {
+    return false;
+  }
+  // 模块不持有通讯层的时钟：记录没带时间戳时由这里补
+  const uint64_t now_ns = mg_millis() * 1000000ULL;
+  std::vector<Record> stamped;
+  stamped.reserve(records.size());
+  for (const Record& record : records) {
+    Record copy = record;
+    if (copy.ts_ns == 0) {
+      copy.ts_ns = now_ns;
+    }
+    stamped.push_back(std::move(copy));
+  }
+  return buffers->PushRecords(stream_id, stamped);
+}
+
+void V1Server::Sink::SetState(uint32_t stream_id, const uint8_t* data,
+                              std::size_t len) {
+  const auto buffers = Buffers();
+  if (buffers == nullptr) {
+    return;
+  }
+  buffers->SetState(stream_id, data, len);
 }
 
 void V1Server::RegisterMediaSource(MediaSource* source) {
@@ -255,10 +315,18 @@ void V1Server::OnHttp(mg_connection* c, mg_http_message* hm) {
       active->ws->is_draining = 1;
       active->ws = nullptr;
     }
-    Session s;
-    s.sid = sid;
-    s.last_ms = mg_millis();
-    sessions_[sid] = s;
+    // 先把旧会话连同它的缓冲整块丢掉，再原地建新的：
+    // 重连不该继承上一条连接的任何状态
+    sessions_.erase(sid);
+    Session& fresh = sessions_[sid];
+    fresh.sid = sid;
+    fresh.last_ms = mg_millis();
+    fresh.buffers = std::make_shared<StreamBuffers>();
+    {
+      // 先断旧生产，再让新的缓冲生效（方案 5.1 第 1 步）
+      std::lock_guard<std::mutex> lock(buffers_mutex_);
+      active_buffers_ = fresh.buffers;
+    }
     auto* ctx = static_cast<ClientCtx*>(c->fn_data);
     if (ctx != nullptr) {
       ctx->sid = sid;
@@ -296,7 +364,8 @@ void V1Server::OnHttp(mg_connection* c, mg_http_message* hm) {
                    {"default_window", 1048576},
                    {"buffer_bytes", {{"sample", 4194304}, {"record", 8388608}}},
                    {"send_queue_bytes", kSendQueueBytes},
-                   {"frag_timeout_ms", 5000}}}});
+                   {"frag_timeout_ms", 5000},
+                   {"ring_total_bytes", kRingTotalBytes}}}});
       return;
     }
     if (r == "time" && method == "GET") {
@@ -505,7 +574,22 @@ void V1Server::OnHttp(mg_connection* c, mg_http_message* hm) {
         if (existing != s->subs.end()) {
           sub.outstanding = existing->second.outstanding;
         }
+        // 缓冲预算：一个会话里所有环合计不能超过上限，
+        // 否则一个写坏的客户端反复订阅就能把内存顶上去（方案第八节）
+        const std::size_t capacity = BufferBytesFor(desc->cls);
+        const bool is_state = desc->cls == "state";
+        const std::size_t charge = StreamBuffers::ChargeFor(capacity, is_state);
+        if (!s->subs.count(id) &&
+            s->buffers->ChargedBytes() + charge > kRingTotalBytes) {
+          ReplyError(c, 409, 2006, "ring budget exhausted",
+                     {{"streamId", id},
+                      {"limit", kRingTotalBytes},
+                      {"used", s->buffers->ChargedBytes()}});
+          return;
+        }
         s->subs[id] = sub;
+        // 订阅时按流类型开一块缓冲：模块推过来的数据落在这里
+        s->buffers->Open(id, capacity, is_state);
         out.push_back({{"streamId", id},
                        {"window", sub.window},
                        {"meta", json::parse(desc->meta)}});
@@ -519,6 +603,7 @@ void V1Server::OnHttp(mg_connection* c, mg_http_message* hm) {
         ReplyError(c, 404, 2003, "not subscribed");
         return;
       }
+      s->buffers->Close(id);
       mg_http_reply(c, 204, kCorsHeaders, "");
       return;
     }
@@ -807,6 +892,11 @@ void V1Server::OnClose(mg_connection* c) {
   }
   Log("session close sid=" + ctx->sid);
   SafeStop("ws closed");
+  {
+    // 先断生产：此后的 Push 立刻拿到空指针，在飞的那些自己会跑完
+    std::lock_guard<std::mutex> lock(buffers_mutex_);
+    active_buffers_.reset();
+  }
   sessions_.erase(it);
 }
 
@@ -873,21 +963,28 @@ void V1Server::Tick() {
     return;
   }
 
+  SendStreamFrames(s, now);
+  SendStateFrames(s, now);
+}
+
+// sample / record：按配额连发，欠账就不发
+void V1Server::SendStreamFrames(Session* s, uint64_t now) {
   for (auto& kv : s->subs) {
     const uint32_t id = kv.first;
     Subscription& sub = kv.second;
     const StreamInfo* stream = nullptr;
-    Module* owner = FindStreamModule(id, &stream);
-    if (owner == nullptr) {
+    if (FindStreamModule(id, &stream) == nullptr || stream == nullptr) {
       continue;
     }
-    // 额度 = window - 已发未归还。window == 0 表示"只订阅不推数据"
-    // （规范 §8.2），此时 available 天然是 0，不必单独判断。
+    if (stream->cls == "state") {
+      continue;  // state 另走一轮
+    }
+    ReportOverrun(s, id, sub, now);
+
     const uint64_t available =
         sub.window > sub.outstanding ? sub.window - sub.outstanding : 0;
     if (available == 0) {
-      // 没额度就不取数。反过来先 Produce 再丢，属于"数据被消费但发不出去"
-      // 的静默丢失，规范 §8.1 不允许。
+      // 没配额就不取数：先取再丢属于"数据被消费但发不出去"，规范不允许
       if (sub.stalled_ms == 0) {
         sub.stalled_ms = now;
         if (sub.window == 0) {
@@ -900,38 +997,143 @@ void V1Server::Tick() {
       }
       continue;
     }
-
-    std::vector<uint8_t> data;
-    std::vector<uint8_t> records;
-    std::string meta;
-    if (!owner->Produce(id, now, data, records, meta)) {
-      continue;
-    }
-    if (data.empty() && records.empty()) {
-      continue;  // 空帧不占 seq
-    }
     if (sub.stalled_ms != 0) {
       Log("stream " + std::to_string(id) + " 恢复推送（暂停 " +
           std::to_string(now - sub.stalled_ms) + " ms）");
       sub.stalled_ms = 0;
     }
 
-    const uint64_t payload = data.size() + records.size();
-    if (payload > available) {
-      // 单帧不能拆分，允许超发一帧，欠账最多超出 window 一帧。
-      // 规范的做法是通讯层持有环形缓冲、溢出报 overrun；这里还没有缓冲层。
-      Log("stream " + std::to_string(id) + " 单帧 " + std::to_string(payload) +
-          " B 超过可用额度 " + std::to_string(available) + " B，超发一帧");
+    // 每取一帧都重算配额：在循环外算一次会让"超发"变成连发（方案 3.3）
+    while (true) {
+      std::size_t len = 0;
+      if (!s->buffers->Peek(id, &len)) {
+        break;
+      }
+      const uint64_t rest =
+          sub.window > sub.outstanding ? sub.window - sub.outstanding : 0;
+      const bool overshoot = len > rest;
+      if (overshoot && sub.outstanding != 0) {
+        break;  // 已经欠着，等客户端归还（规范 §8.2）
+      }
+
+      std::vector<uint8_t> payload;
+      uint32_t seq = 0;
+      uint64_t ts_ns = 0;
+      if (!s->buffers->TakeFrame(id, now * 1000000ULL, &payload, &seq,
+                                 &ts_ns)) {
+        break;
+      }
+      if (overshoot) {
+        Log("stream " + std::to_string(id) + " 单帧 " +
+            std::to_string(payload.size()) + " B 超过可用额度 " +
+            std::to_string(rest) + " B，超发一帧");
+      }
+      SendStreamFrame(s, id, sub, stream, seq, ts_ns, payload, {}, true);
+      if (overshoot) {
+        break;  // 超发一帧后收手，等归还
+      }
     }
-    const bool with_meta = !sub.meta_sent;
-    const uint32_t seq = ++seqs_[id];
-    const auto frame =
-        BuildFrame(id, seq, now * 1000000ULL, with_meta ? kSnapshot : kDelta,
-                   with_meta, meta, data, records);
-    mg_ws_send(s->ws, frame.data(), frame.size(), WEBSOCKET_OP_BINARY);
-    sub.meta_sent = true;
-    sub.outstanding += payload;
   }
+}
+
+// state：每 tick 有总量闸，按轮转保证每一路都轮得到
+void V1Server::SendStateFrames(Session* s, uint64_t now) {
+  std::vector<uint32_t> ids;
+  for (auto& kv : s->subs) {
+    const StreamInfo* stream = nullptr;
+    if (FindStreamModule(kv.first, &stream) != nullptr && stream != nullptr &&
+        stream->cls == "state") {
+      ids.push_back(kv.first);
+    }
+  }
+  if (ids.empty()) {
+    return;
+  }
+
+  // 从上次停下的下一个开始，避免固定的前几路永远抢到名额
+  std::size_t start = 0;
+  for (std::size_t i = 0; i < ids.size(); ++i) {
+    if (ids[i] > state_rr_) {
+      start = i;
+      break;
+    }
+  }
+
+  std::size_t frames = 0;
+  std::size_t bytes = 0;
+  for (std::size_t n = 0; n < ids.size(); ++n) {
+    if (frames >= kMaxStateFramesPerTick || bytes >= kMaxStateBytesPerTick) {
+      break;  // 剩下的下一个 tick 再发：state 只保证最终一致
+    }
+    const uint32_t id = ids[(start + n) % ids.size()];
+    Subscription& sub = s->subs[id];
+    std::vector<uint8_t> payload;
+    uint32_t seq = 0;
+    uint64_t ts_ns = 0;
+    if (!s->buffers->TakeFrame(id, now * 1000000ULL, &payload, &seq, &ts_ns)) {
+      continue;
+    }
+    const StreamInfo* stream = nullptr;
+    FindStreamModule(id, &stream);
+    SendStreamFrame(s, id, sub, stream, seq, ts_ns, payload, {}, false);
+    ++frames;
+    bytes += payload.size();
+    state_rr_ = id;
+  }
+}
+
+void V1Server::SendStreamFrame(Session* s, uint32_t id, Subscription& sub,
+                               const StreamInfo* stream, uint32_t seq,
+                               uint64_t ts_ns, const std::vector<uint8_t>& data,
+                               const std::vector<uint8_t>& records,
+                               bool charge) {
+  const bool with_meta = !sub.meta_sent;
+  const std::string meta =
+      with_meta && stream != nullptr ? stream->meta : std::string();
+  const auto frame = BuildFrame(id, seq, ts_ns, with_meta ? kSnapshot : kDelta,
+                                with_meta, meta, data, records);
+  mg_ws_send(s->ws, frame.data(), frame.size(), WEBSOCKET_OP_BINARY);
+  sub.meta_sent = true;
+  if (charge) {
+    sub.outstanding += data.size() + records.size();
+  }
+}
+
+void V1Server::ReportOverrun(Session* s, uint32_t id, Subscription& sub,
+                             uint64_t now) {
+  StreamRing::Overrun fresh;
+  if (s->buffers->TakeOverrun(id, &fresh)) {
+    if (sub.pending_overrun.dropped_frames == 0) {
+      sub.pending_overrun.first_seq = fresh.first_seq;
+    }
+    sub.pending_overrun.last_seq = fresh.last_seq;
+    sub.pending_overrun.dropped_frames += fresh.dropped_frames;
+    sub.pending_overrun.dropped_bytes += fresh.dropped_bytes;
+  }
+  if (sub.pending_overrun.dropped_frames == 0) {
+    return;
+  }
+  // 第一声立刻报；同一段持续溢出才按 500 毫秒合并（规范 §8.1 与 §8.3 的折中）
+  if (sub.last_overrun_ms != 0 && now - sub.last_overrun_ms < 500) {
+    return;
+  }
+
+  const json payload = {{"streamId", id},
+                        {"droppedFrames", sub.pending_overrun.dropped_frames},
+                        {"droppedBytes", sub.pending_overrun.dropped_bytes},
+                        {"firstSeq", sub.pending_overrun.first_seq},
+                        {"lastSeq", sub.pending_overrun.last_seq}};
+  SendEvent(s, "core.overrun", payload);
+
+  // 再补一帧 opcode=ERROR：事件通道拥挤时也能看到；seq 固定 0，不占号
+  const std::string text = payload.dump();
+  std::vector<uint8_t> data(text.begin(), text.end());
+  const auto frame =
+      BuildFrame(id, 0, now * 1000000ULL, kError, false, "", data, {});
+  mg_ws_send(s->ws, frame.data(), frame.size(), WEBSOCKET_OP_BINARY);
+
+  sub.last_overrun_ms = now;
+  sub.pending_overrun = StreamRing::Overrun{};
 }
 
 void V1Server::Ping() {

@@ -17,6 +17,10 @@ add_library(v1_base STATIC
   base/module.h
   base/server.cpp
   base/server.h
+  base/stream_ring.cpp
+  base/stream_ring.h
+  base/stream_buffers.cpp
+  base/stream_buffers.h
 )
 
 set_target_properties(v1_base PROPERTIES

@@ -32,6 +32,30 @@ endif()
 add_test(NAME frame COMMAND test_frame)
 
 # ------------------------------------------------------------
+# 通讯层：环形缓冲（按整帧写入、按整帧淘汰、溢出统计）
+# ------------------------------------------------------------
+add_executable(test_ring framework/stream_ring_test.cpp)
+target_link_libraries(test_ring PRIVATE v1_base gtest_main)
+
+if(MSVC)
+  target_compile_options(test_ring PRIVATE /utf-8 /W4 /WX-)
+endif()
+
+add_test(NAME ring COMMAND test_ring)
+
+# ------------------------------------------------------------
+# 通讯层：每个流的缓冲管理（写入口、序号分配、state 合并）
+# ------------------------------------------------------------
+add_executable(test_buffers framework/stream_buffers_test.cpp)
+target_link_libraries(test_buffers PRIVATE v1_base gtest_main)
+
+if(MSVC)
+  target_compile_options(test_buffers PRIVATE /utf-8 /W4 /WX-)
+endif()
+
+add_test(NAME buffers COMMAND test_buffers)
+
+# ------------------------------------------------------------
 # 公共设施：日志门面（级别、中文、落盘）
 # ------------------------------------------------------------
 add_executable(test_log common/log_test.cpp)
