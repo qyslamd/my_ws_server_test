@@ -68,5 +68,26 @@ endif()
 add_test(NAME log COMMAND test_log)
 
 # ------------------------------------------------------------
+# 集成测试：起真服务端 + 独立实现的客户端（cpp-httplib）
+#
+# cpp-httplib 只给这一层用，不要链进 v1_base 或产品目标。
+# 它走异常，所以单独开 /EHsc；其余代码仍按仓库约定用 err 返回。
+# 单头 862 KB，一个测试文件只 include 一次，别散到多个 TU。
+# ------------------------------------------------------------
+set(HTTPLIB_DIR "${CMAKE_SOURCE_DIR}/3rdparty/cpp-httplib-0.66.0")
+
+add_executable(test_server_smoke integration/server_smoke_test.cpp)
+target_link_libraries(test_server_smoke PRIVATE v1_base gtest_main)
+# SYSTEM：第三方头的告警不参与我们自己的 /W4
+target_include_directories(test_server_smoke SYSTEM PRIVATE "${HTTPLIB_DIR}")
+
+if(MSVC)
+  # /wd4127：httplib 里有一处常量条件告警，压掉以免淹没自己的输出
+  target_compile_options(test_server_smoke PRIVATE /utf-8 /W4 /WX- /EHsc /wd4127)
+endif()
+
+add_test(NAME server_smoke COMMAND test_server_smoke)
+
+# ------------------------------------------------------------
 # 业务模块：串口协议解析、判定规则等（按需新增到 modules/）
 # ------------------------------------------------------------
