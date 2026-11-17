@@ -7,6 +7,7 @@
 #include <fstream>
 #include <nlohmann/json.hpp>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "base/frame.h"
@@ -43,6 +44,10 @@ constexpr std::size_t kMaxStateBytesPerTick = 256 * 1024;
 
 // 一条会话里所有环合计的预算（字节区 + 描述符），规范 §8.4
 constexpr std::size_t kRingTotalBytes = 64u * 1024 * 1024;
+
+// 收尾预算（规范 §5.4）。一个阶段一份：同一阶段里多个模块并行、
+// 共用这一份；超时就升级，不在这里无限等业务
+constexpr uint64_t kStopTimeoutMs = 5000;
 
 // 单条 WS 消息的负载上限与默认配额，规范 §8.4：
 // 两者取同一个值，一帧恰好装得满一次额度，不必靠超发
@@ -303,6 +308,8 @@ void V1Server::EventFn(mg_connection* c, int ev, void* ev_data) {
     return;
   }
   if (ev == MG_EV_CLOSE) {
+    // 连接一关，等它回话的 stop 请求就没有收件人了
+    self->DropPendingStop(c);
     if (ctx != nullptr && ctx->is_ws) {
       self->OnClose(c);
     }
@@ -331,8 +338,9 @@ void V1Server::OnHttp(mg_connection* c, mg_http_message* hm) {
     // 单会话，且没有"顶替"（规范 §5.5）：同 sid 也好、不同 sid 也好，
     // 旧会话没销毁之前，新连接一律在握手阶段挡掉。允许顶替就等于
     // "知道 sid 的人能把操作员踢下线并触发一次停机"
+    // 收尾期间也不接受新会话：旧会话还没销毁完，设备可能还没停稳
     Session* active = ActiveSession();
-    if (active != nullptr) {
+    if (ending_ || active != nullptr) {
       ReplyError(c, 409, 2001, "session busy");
       return;
     }
@@ -389,6 +397,7 @@ void V1Server::OnHttp(mg_connection* c, mg_http_message* hm) {
                    {"buffer_bytes", {{"sample", 4194304}, {"record", 8388608}}},
                    {"send_queue_bytes", kSendQueueBytes},
                    {"send_queue_drain_ms", kSendQueueDrainMs},
+                   {"stop_timeout_ms", kStopTimeoutMs},
                    {"ring_total_bytes", kRingTotalBytes}}}});
       return;
     }
@@ -548,17 +557,35 @@ void V1Server::OnHttp(mg_connection* c, mg_http_message* hm) {
         ReplyError(c, 404, 2002, "module not found");
         return;
       }
-      std::string err;
-      const bool ok = parts[4] == "start" ? m->Start(err) : m->Stop(err);
-      if (!ok) {
-        ReplyError(c, 409, 2006, err);
+      if (parts[4] == "start") {
+        std::string err;
+        if (!m->Start(err)) {
+          ReplyError(c, 409, 2006, err);
+          return;
+        }
+        SendEvent(s, "core.module.state",
+                  {{"ns", m->ns()}, {"running", m->running()}});
+        SendEvent(s, "core.state",
+                  {{"module", m->ns()}, {"running", m->running()}});
+        ReplyJson(c, 200, {{"ok", true}, {"state", m->State()}});
         return;
       }
-      SendEvent(s, "core.module.state",
-                {{"ns", m->ns()}, {"running", m->running()}});
-      SendEvent(s, "core.state",
-                {{"module", m->ns()}, {"running", m->running()}});
-      ReplyJson(c, 200, {{"ok", true}, {"state", m->State()}});
+
+      // stop 让该模块进入 STOPPING：这期间再发 start 或 stop 一律拒绝，
+      // 客户端看不到内部瞬态，只能靠 409 过一会儿重试（规范 §5.1）
+      for (const auto& pending : pending_stops_) {
+        if (pending.ns == m->ns()) {
+          ReplyError(c, 409, 2006, "module is stopping");
+          return;
+        }
+      }
+      if (!m->running()) {
+        ReplyError(c, 409, 2006, "module is not running");
+        return;
+      }
+      // Stop 可能阻塞，交给工作线程；响应在 TickPendingStops 里回，
+      // 事件循环这段时间照常跑心跳
+      pending_stops_.push_back({c, m->ns(), StartStopBatch({m->ns()})});
       return;
     }
     if (r == "streams" && parts.size() == 3 && method == "GET") {
@@ -913,37 +940,186 @@ void V1Server::OnClose(mg_connection* c) {
   if (it->second.ws != nullptr && it->second.ws != c) {
     return;
   }
-  Log("session close sid=" + ctx->sid);
-  SafeStop("ws closed");
+  // 链路已经断了，ending 和 4100 都发不出去，直接进入异步收尾
+  it->second.ws = nullptr;
+  SafeStop("ws closed", ctx->sid);
+}
+
+void V1Server::StopBatch::Finish(bool ok, const std::string& err) {
+  if (!ok) {
+    std::lock_guard<std::mutex> lock(mutex);
+    if (!failed.load()) {
+      first_err = err;
+    }
+    failed.store(true);
+  }
+  outstanding.fetch_sub(1);
+}
+
+std::shared_ptr<V1Server::StopBatch> V1Server::StartStopBatch(
+    const std::vector<std::string>& ns_list) {
+  auto batch = std::make_shared<StopBatch>();
+  batch->deadline_ms = mg_millis() + kStopTimeoutMs;
+  batch->outstanding.store(static_cast<int>(ns_list.size()));
+  for (const std::string& ns : ns_list) {
+    Module* m = FindModule(ns);
+    if (m == nullptr) {
+      batch->Finish(true, "");
+      continue;
+    }
+    // 每个模块一个独立线程：Stop 允许阻塞，但不许拖住事件循环。
+    // 业务永不返回时这个线程就挂着，框架照样到点销毁会话——
+    // 规范选择"框架不被拖垮"。模块对象活到进程结束，线程不会悬空
+    std::thread([m, batch] {
+      std::string err;
+      const bool ok = m->Stop(err);
+      batch->Finish(ok, err);
+    }).detach();
+  }
+  return batch;
+}
+
+void V1Server::SafeStop(const std::string& reason, const std::string& sid) {
+  if (ending_) {
+    return;  // 已经在收尾，重复触发只算第一次
+  }
+  ending_ = true;
+  ending_reason_ = reason;
+
+  Session* s = ActiveSession();
+  ending_sid_ = sid.empty() ? (s != nullptr ? s->sid : std::string()) : sid;
+
+  // 1. 断生产：此后的 Push 拿不到缓冲区，在飞的自己跑完
   {
-    // 先断生产：此后的 Push 立刻拿到空指针，在飞的那些自己会跑完
     std::lock_guard<std::mutex> lock(buffers_mutex_);
     active_buffers_.reset();
   }
-  sessions_.erase(it);
-}
 
-void V1Server::SafeStop(const std::string& reason) {
-  bool stopped = false;
-  for (auto& kv : modules_) {
+  // 2. 尽力告诉客户端为什么断，能发出去才算数
+  if (s != nullptr && s->ws != nullptr) {
+    SendEvent(s, "core.session.ending", {{"reason", reason}});
+    SendClose(s->ws, kCloseSessionEnd, reason.c_str());
+    s->ws->is_draining = 1;
+    s->ws = nullptr;
+  }
+
+  // 3. 正在等的显式 stop 没有意义了：会话都要没了
+  pending_stops_.clear();
+
+  // 4. 所有在跑的模块并行停，一份预算
+  std::vector<std::string> running;
+  for (const auto& kv : modules_) {
     if (kv.second->running()) {
-      std::string err;
-      kv.second->Stop(err);
-      stopped = true;
+      running.push_back(kv.first);
     }
   }
-  if (!stopped) {
+  ending_batch_ = StartStopBatch(running);
+  ending_deadline_ms_ = ending_batch_->deadline_ms;
+  Log("收尾开始: " + reason + "，模块 " + std::to_string(running.size()) +
+      " 个");
+
+  if (running.empty()) {
+    FinishSafeStop();
+  }
+}
+
+void V1Server::FinishSafeStop() {
+  if (!ending_) {
     return;
   }
-  Log("SAFE_STOP: " + reason);
-  Session* s = ActiveSession();
-  if (s != nullptr) {
-    SendEvent(s, "core.session.ending", {{"reason", reason}});
+  if (!ending_sid_.empty()) {
+    sessions_.erase(ending_sid_);
+  }
+  {
+    // 兜底再断一次：Begin 之后可能又开过缓冲
+    std::lock_guard<std::mutex> lock(buffers_mutex_);
+    active_buffers_.reset();
+  }
+  Log("会话已销毁: " + ending_reason_);
+  ending_ = false;
+  ending_sid_.clear();
+  ending_reason_.clear();
+  ending_batch_.reset();
+  ending_deadline_ms_ = 0;
+}
+
+void V1Server::DropPendingStop(mg_connection* c) {
+  for (auto it = pending_stops_.begin(); it != pending_stops_.end();) {
+    if (it->conn == c) {
+      it = pending_stops_.erase(it);
+    } else {
+      ++it;
+    }
+  }
+}
+
+void V1Server::TickStop(uint64_t now) {
+  TickPendingStops(now);
+  if (!ending_) {
+    return;
+  }
+  // 停完就走；没停完就等到点，到点也不再等业务
+  const bool done =
+      ending_batch_ == nullptr || ending_batch_->outstanding.load() <= 0;
+  if (done || now > ending_deadline_ms_) {
+    FinishSafeStop();
+  }
+}
+
+void V1Server::TickPendingStops(uint64_t now) {
+  if (pending_stops_.empty()) {
+    return;
+  }
+  if (ending_) {
+    pending_stops_.clear();  // 会话在销毁，等它的请求一并作废
+    return;
+  }
+  for (auto it = pending_stops_.begin(); it != pending_stops_.end();) {
+    const bool done = it->batch->outstanding.load() <= 0;
+    const bool late = now > it->batch->deadline_ms;
+    if (!done && !late) {
+      ++it;
+      continue;
+    }
+
+    Module* m = FindModule(it->ns);
+    if (done && !it->batch->failed.load()) {
+      Session* s = ActiveSession();
+      if (s != nullptr && m != nullptr) {
+        SendEvent(s, "core.module.state",
+                  {{"ns", it->ns}, {"running", m->running()}});
+        SendEvent(s, "core.state",
+                  {{"module", it->ns}, {"running", m->running()}});
+      }
+      if (it->conn != nullptr) {
+        json state = m != nullptr ? m->State() : json::object();
+        ReplyJson(it->conn, 200, {{"ok", true}, {"state", state}});
+      }
+      it = pending_stops_.erase(it);
+      continue;
+    }
+    if (done) {
+      // 业务自己报的失败：模块保持运行，可以重试
+      if (it->conn != nullptr) {
+        ReplyError(it->conn, 409, 2006, it->batch->first_err);
+      }
+      it = pending_stops_.erase(it);
+      continue;
+    }
+
+    // 超时：一个模块停不下来，说明设备状态不可信，升级为会话级安全停机
+    if (it->conn != nullptr) {
+      ReplyError(it->conn, 409, 2007, "stop timeout");
+    }
+    pending_stops_.clear();
+    SafeStop("stop_timeout");
+    return;
   }
 }
 
 void V1Server::Tick() {
   const uint64_t now = mg_millis();
+  TickStop(now);
   CheckHeartbeat(now);
 
   for (auto& job : modules_) {
@@ -979,12 +1155,9 @@ void V1Server::Tick() {
   if (s->ws->send.len > kSendQueueBytes) {
     Log("session overload sid=" + s->sid + "，发送队列积压 " +
         std::to_string(s->ws->send.len) + " B");
-    SendEvent(s, "core.session.ending", {{"reason", "send queue overflow"}});
-    SafeStop("send queue overflow");
-    // 积压的几十 MB 没必要再发：丢掉，只把关闭帧送出去
+    // 积压的几十 MB 没必要再发：先丢掉，再把 ending 与关闭帧送出去
     mg_iobuf_del(&s->ws->send, 0, s->ws->send.len);
-    SendClose(s->ws, kCloseSessionEnd, "send queue overflow");
-    s->ws->is_draining = 1;
+    SafeStop("send queue overflow");
     return;
   }
 
@@ -1200,8 +1373,7 @@ void V1Server::CheckHeartbeat(uint64_t now) {
         " ms，发送缓冲 " + std::to_string(queued) + " B" +
         (progressing ? "（有推进）" : "（无推进）"));
     SafeStop("heartbeat timeout");
-    SendClose(s.ws, kCloseSessionEnd, "heartbeat timeout");
-    s.ws->is_draining = 1;
+    break;  // 只有一个会话；SafeStop 可能已经把它从表里删掉
   }
 }
 

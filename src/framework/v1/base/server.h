@@ -100,6 +100,30 @@ class V1Server {
   // 每 tick 检查一次：静默超时且发送缓冲不再推进就判死（规范 5.3）
   void CheckHeartbeat(uint64_t now);
 
+  // 一次批量停模块。Stop 跑在独立线程里，事件循环只看进度：
+  // 业务卡死不会拖住心跳，到点照样销毁会话（规范 §5.4）
+  struct StopBatch {
+    std::atomic<int> outstanding{0};
+    std::atomic<bool> failed{false};
+    std::mutex mutex;
+    std::string first_err;
+    uint64_t deadline_ms = 0;
+
+    void Finish(bool ok, const std::string& err);
+  };
+  struct PendingStop {
+    mg_connection* conn = nullptr;
+    std::string ns;
+    std::shared_ptr<StopBatch> batch;
+  };
+
+  std::shared_ptr<StopBatch> StartStopBatch(
+      const std::vector<std::string>& ns_list);
+  void TickStop(uint64_t now);
+  void TickPendingStops(uint64_t now);
+  void FinishSafeStop();
+  void DropPendingStop(mg_connection* c);
+
   // Tick 的发送侧：sample/record 按配额连发，state 走每 tick 总量闸
   void SendStreamFrames(Session* s, uint64_t now);
   void SendStateFrames(Session* s, uint64_t now);
@@ -119,7 +143,9 @@ class V1Server {
   Session* SessionFromHeader(mg_http_message* hm);
   void SendEvent(Session* s, const std::string& name,
                  const nlohmann::json& payload);
-  void SafeStop(const std::string& reason);
+  // 开始一次异步收尾：断生产、尽力发 ending、停模块，到点销毁。
+  // 幂等，重复调用只算第一次
+  void SafeStop(const std::string& reason, const std::string& sid = "");
   void Log(const std::string& msg);
   std::string AddBlob(const std::string& content_type,
                       const std::vector<uint8_t>& data);
@@ -143,6 +169,14 @@ class V1Server {
   std::mutex buffers_mutex_;
   // state 流的轮转游标：下一次从比它大的 id 开始发，避免固定几路饿死
   uint32_t state_rr_ = 0;
+  // 收尾状态：进入之后拒绝新会话，直到模块停完或到点
+  bool ending_ = false;
+  std::string ending_sid_;
+  std::string ending_reason_;
+  std::shared_ptr<StopBatch> ending_batch_;
+  uint64_t ending_deadline_ms_ = 0;
+  // 显式 stop 请求：响应要等工作线程回来，期间连接必须还在
+  std::vector<PendingStop> pending_stops_;
   // 交给业务模块的推送口；模块只拿到它的基类指针
   Sink sink_{this};
   std::map<std::string, int> revisions_;

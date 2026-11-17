@@ -172,6 +172,7 @@ TEST_F(ServerSmokeTest, CapabilitiesNeedNoSession) {
   EXPECT_EQ(res->body.find("\"frag\""), std::string::npos);
   EXPECT_EQ(res->body.find("\"jobs\""), std::string::npos);
   EXPECT_NE(res->body.find("\"send_queue_drain_ms\":"), std::string::npos);
+  EXPECT_NE(res->body.find("\"stop_timeout_ms\":"), std::string::npos);
   EXPECT_EQ(res->body.find("\"frag_timeout_ms\":"), std::string::npos);
 }
 
@@ -283,4 +284,29 @@ TEST_F(ServerSmokeTest, CreditForUnknownOrStateStreamIsSilent) {
     EXPECT_EQ(msg.find("core.error"), std::string::npos) << msg;
   }
   FAIL() << "unexpected event stream";
+}
+
+// Stop 交给工作线程，响应晚一个 tick 回来；停完再停要被挡住
+TEST_F(ServerSmokeTest, StopRunsOffTheEventLoop) {
+  httplib::ws::WebSocketClient ws(WsUrl("smoke-1"));
+  ASSERT_TRUE(ws.connect());
+
+  httplib::Client cli("127.0.0.1", running_.port);
+  cli.set_default_headers({{"X-Session-Id", "smoke-1"}});
+
+  auto start = cli.Post("/api/v1/modules/fake/start", "", "application/json");
+  ASSERT_TRUE(start);
+  EXPECT_EQ(start->status, 200);
+
+  auto stop = cli.Post("/api/v1/modules/fake/stop", "", "application/json");
+  ASSERT_TRUE(stop);
+  EXPECT_EQ(stop->status, 200);
+  EXPECT_NE(stop->body.find("\"ok\":true"), std::string::npos);
+
+  auto again = cli.Post("/api/v1/modules/fake/stop", "", "application/json");
+  ASSERT_TRUE(again);
+  EXPECT_EQ(again->status, 409);
+  EXPECT_NE(again->body.find("\"code\":2006"), std::string::npos);
+
+  ws.close();
 }
