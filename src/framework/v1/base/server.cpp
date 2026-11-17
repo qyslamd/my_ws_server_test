@@ -40,6 +40,11 @@ constexpr std::size_t kMaxStateBytesPerTick = 256 * 1024;
 // 一条会话里所有环合计的预算（字节区 + 描述符），规范 §8.4
 constexpr std::size_t kRingTotalBytes = 64u * 1024 * 1024;
 
+// 单条 WS 消息的负载上限与默认配额，规范 §8.4：
+// 两者取同一个值，一帧恰好装得满一次额度，不必靠超发
+constexpr std::size_t kMaxDataFrameBytes = 1024u * 1024;
+constexpr uint64_t kDefaultWindowBytes = 1024ull * 1024;
+
 struct ClientCtx {
   std::string sid;
   bool is_ws = false;
@@ -164,6 +169,10 @@ std::shared_ptr<v1::StreamBuffers> V1Server::Sink::Buffers() const {
 
 bool V1Server::Sink::PushSample(uint32_t stream_id, const uint8_t* data,
                                 std::size_t len) {
+  // 超过协议上限的帧直接拒收：进环也没用，发送侧发不出去
+  if (data == nullptr || len == 0 || len > kMaxDataFrameBytes) {
+    return false;
+  }
   const auto buffers = Buffers();
   if (buffers == nullptr) {
     return false;
@@ -173,6 +182,14 @@ bool V1Server::Sink::PushSample(uint32_t stream_id, const uint8_t* data,
 
 bool V1Server::Sink::PushRecords(uint32_t stream_id,
                                  const std::vector<Record>& records) {
+  // 每条记录带 12 字节头（时间戳 8 + 长度 4），合计不能超过单帧上限
+  std::size_t total = 0;
+  for (const Record& record : records) {
+    total += 12 + record.payload.size();
+  }
+  if (total == 0 || total > kMaxDataFrameBytes) {
+    return false;
+  }
   const auto buffers = Buffers();
   if (buffers == nullptr) {
     return false;
@@ -193,6 +210,9 @@ bool V1Server::Sink::PushRecords(uint32_t stream_id,
 
 void V1Server::Sink::SetState(uint32_t stream_id, const uint8_t* data,
                               std::size_t len) {
+  if (data == nullptr || len == 0 || len > kMaxDataFrameBytes) {
+    return;
+  }
   const auto buffers = Buffers();
   if (buffers == nullptr) {
     return;
@@ -360,8 +380,8 @@ void V1Server::OnHttp(mg_connection* c, mg_http_message* hm) {
                  {"server", "v1-base/0.1"},
                  {"caps", {"credit", "frag", "jobs", "blobs"}},
                  {"limits",
-                  {{"max_data_frame", 8388608},
-                   {"default_window", 1048576},
+                  {{"max_data_frame", kMaxDataFrameBytes},
+                   {"default_window", kDefaultWindowBytes},
                    {"buffer_bytes", {{"sample", 4194304}, {"record", 8388608}}},
                    {"send_queue_bytes", kSendQueueBytes},
                    {"frag_timeout_ms", 5000},
@@ -567,7 +587,7 @@ void V1Server::OnHttp(mg_connection* c, mg_http_message* hm) {
           return;
         }
         Subscription sub;
-        sub.window = item.value("window", 1048576ULL);
+        sub.window = item.value("window", kDefaultWindowBytes);
         sub.meta_sent = false;
         // 重订阅不清欠账，否则客户端靠"再订阅一次"就能把窗口翻倍
         auto existing = s->subs.find(id);
@@ -921,6 +941,8 @@ void V1Server::SafeStop(const std::string& reason) {
 
 void V1Server::Tick() {
   const uint64_t now = mg_millis();
+  CheckHeartbeat(now);
+
   for (auto& job : modules_) {
     std::string event_name;
     json event_payload;
@@ -1137,24 +1159,46 @@ void V1Server::ReportOverrun(Session* s, uint32_t id, Subscription& sub,
 }
 
 void V1Server::Ping() {
-  const uint64_t now = mg_millis();
+  for (auto& kv : sessions_) {
+    Session& s = kv.second;
+    if (s.ws != nullptr) {
+      mg_ws_send(s.ws, "", 0, WEBSOCKET_OP_PING);
+    }
+  }
+}
+
+// 判死看两件事：静默多久、这段时间里发送缓冲有没有往前走过。
+// 积压本身不能当免死牌：拔网线后缓冲同样非零，而且会一直涨（规范 §5.3）
+void V1Server::CheckHeartbeat(uint64_t now) {
   for (auto& kv : sessions_) {
     Session& s = kv.second;
     if (s.ws == nullptr) {
       continue;
     }
-    // 发送队列还堆着东西时不判死：那是我们发不出去，不是对面不理我们。
-    // 少了这一条，慢链路上 Ping 排在数据后面几十秒，就会把活连接掐掉
-    // （规范 §8.5）。队列本身由 Tick 里的上限兜底
-    const bool backlog = s.ws->send.len > 0;
-    if (!backlog && now > s.last_ms && now - s.last_ms > 15000) {
-      Log("session timeout sid=" + s.sid);
-      SafeStop("heartbeat timeout");
-      SendClose(s.ws, kCloseSessionEnd, "heartbeat timeout");
-      s.ws->is_draining = 1;
+
+    const std::size_t queued = s.ws->send.len;
+    if (s.backlog_base_ms != s.last_ms) {
+      // 刚收到过消息：以这一刻的积压作为新窗口的基准
+      s.backlog_base_ms = s.last_ms;
+      s.backlog_base = queued;
+      s.backlog_min = queued;
+    } else if (queued < s.backlog_min) {
+      s.backlog_min = queued;
+    }
+
+    const uint64_t silent_ms = now > s.last_ms ? now - s.last_ms : 0;
+    const bool progressing = s.backlog_min < s.backlog_base;
+    const uint64_t limit_ms = progressing ? 30000 : 15000;
+    if (silent_ms <= limit_ms) {
       continue;
     }
-    mg_ws_send(s.ws, "", 0, WEBSOCKET_OP_PING);
+
+    Log("session timeout sid=" + s.sid + "，静默 " + std::to_string(silent_ms) +
+        " ms，发送缓冲 " + std::to_string(queued) + " B" +
+        (progressing ? "（有推进）" : "（无推进）"));
+    SafeStop("heartbeat timeout");
+    SendClose(s.ws, kCloseSessionEnd, "heartbeat timeout");
+    s.ws->is_draining = 1;
   }
 }
 

@@ -52,6 +52,10 @@ class V1Server {
     std::string user;
     std::string role;
     std::string token;
+    // 心跳判死用的采样：本次静默窗口对应哪一次收到消息，以及窗口内见过的最小积压
+    uint64_t backlog_base_ms = 0;
+    std::size_t backlog_base = 0;
+    std::size_t backlog_min = 0;
     std::map<uint32_t, Subscription> subs;
     // 每个订阅流一个缓冲，跟着会话走。
     // 用 shared_ptr：会话结束时把 active_buffers_ 置空（detached），
@@ -93,6 +97,8 @@ class V1Server {
   void OnClose(mg_connection* c);
   void Tick();
   void Ping();
+  // 每 tick 检查一次：静默超时且发送缓冲不再推进就判死（规范 5.3）
+  void CheckHeartbeat(uint64_t now);
 
   // Tick 的发送侧：sample/record 按配额连发，state 走每 tick 总量闸
   void SendStreamFrames(Session* s, uint64_t now);
