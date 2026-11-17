@@ -76,6 +76,10 @@ class ServerSmokeTest : public ::testing::Test {
     FAIL() << "server did not answer within 2s";
   }
 
+  std::string WsUrl(const char* sid) const {
+    return "ws://127.0.0.1:" + std::to_string(running_.port) + "/ws?sid=" + sid;
+  }
+
   RunningServer running_;
 };
 
@@ -86,7 +90,12 @@ TEST_F(ServerSmokeTest, CapabilitiesNeedNoSession) {
   ASSERT_TRUE(res);
   EXPECT_EQ(res->status, 200);
   EXPECT_NE(res->body.find("\"proto\":1"), std::string::npos);
-  EXPECT_NE(res->body.find("\"credit\""), std::string::npos);
+  // 规范 §6.3：v1 只声明 credit，分片与作业不在范围内
+  EXPECT_NE(res->body.find("\"caps\":[\"credit\"]"), std::string::npos);
+  EXPECT_EQ(res->body.find("\"frag\""), std::string::npos);
+  EXPECT_EQ(res->body.find("\"jobs\""), std::string::npos);
+  EXPECT_NE(res->body.find("\"send_queue_drain_ms\":"), std::string::npos);
+  EXPECT_EQ(res->body.find("\"frag_timeout_ms\":"), std::string::npos);
 }
 
 // 没有 WS 就没有会话，需要会话的接口一律被挡住
@@ -118,4 +127,27 @@ TEST_F(ServerSmokeTest, WebSocketCreatesSession) {
   EXPECT_EQ(res->status, 200);
 
   ws.close();
+}
+
+// 单会话且没有顶替：第一条还在时，第二条换个 sid 也会被挡在握手阶段
+TEST_F(ServerSmokeTest, SecondWebSocketIsRejected) {
+  httplib::ws::WebSocketClient first(WsUrl("smoke-1"));
+  ASSERT_TRUE(first.connect());
+  first.set_read_timeout(3, 0);
+  std::string msg;
+  ASSERT_EQ(first.read(msg), httplib::ws::ReadResult::Text);
+
+  httplib::ws::WebSocketClient second(WsUrl("smoke-2"));
+  EXPECT_FALSE(second.connect());
+
+  // 关掉之后会话销毁，新连接又能进来
+  first.close();
+  for (int i = 0; i < 50; ++i) {
+    httplib::ws::WebSocketClient again(WsUrl("smoke-3"));
+    if (again.connect()) {
+      return;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(40));
+  }
+  FAIL() << "reconnect still refused 2s after close";
 }

@@ -24,13 +24,17 @@ const char* kCorsHeaders =
     "Access-Control-Allow-Headers: Content-Type, X-Session-Id\r\n";
 
 // WS 关闭码。和 HTTP 错误码（也是四位数）刻意错开，免得同一份日志里
-// 看到 4001 有两种解释。见规范 §7.10。目前只有会话结束这一档有发送点，
-// 4101/4102 留给"会话级致命错误"，那条路径还没出现
+// 看到 4001 有两种解释。见规范 §7.9。目前只有会话结束这一档有发送点，
+// v1 只用得着一个关闭码，其余留给后续版本（规范 §7.9）
 constexpr uint16_t kCloseSessionEnd = 4100;
 
 // 发送队列硬上限（规范 §8.4）。超过说明链路已经跟不上，
 // 继续堆只会让心跳也排不出去
 constexpr uint64_t kSendQueueBytes = 64ull * 1024 * 1024;
+
+// 预计排空时间的上限（规范 §8.5）。只看字节数时，慢链路上 64 MiB
+// 可能写十几分钟，所以还要卡一条时间线
+constexpr uint64_t kSendQueueDrainMs = 10ull * 1000;
 
 // state 每 tick 的发送闸。state 不参与配额，没有这道闸的话，
 // 一路刷得勤的状态流就能把发送队列占满，把整场会话带下去（方案第六节）
@@ -322,21 +326,15 @@ void V1Server::OnHttp(mg_connection* c, mg_http_message* hm) {
       ReplyError(c, 400, 1003, "missing sid");
       return;
     }
+    // 单会话，且没有"顶替"（规范 §5.5）：同 sid 也好、不同 sid 也好，
+    // 旧会话没销毁之前，新连接一律在握手阶段挡掉。允许顶替就等于
+    // "知道 sid 的人能把操作员踢下线并触发一次停机"
     Session* active = ActiveSession();
-    if (active != nullptr && active->sid != sid) {
+    if (active != nullptr) {
       ReplyError(c, 409, 2001, "session busy");
       return;
     }
-    if (active != nullptr && active->sid == sid && active->ws != nullptr) {
-      // 先告诉旧连接为什么被关，再断开；客户端据此能区分
-      // "被顶替"和"网络断了"。is_draining 是"发完缓冲再关"，
-      // 用 is_closing 会把关闭帧直接丢掉
-      SendClose(active->ws, kCloseSessionEnd, "replaced by new session");
-      active->ws->is_draining = 1;
-      active->ws = nullptr;
-    }
-    // 先把旧会话连同它的缓冲整块丢掉，再原地建新的：
-    // 重连不该继承上一条连接的任何状态
+    // 旧会话连同它的缓冲整块丢掉再建新的：重连不继承任何状态
     sessions_.erase(sid);
     Session& fresh = sessions_[sid];
     fresh.sid = sid;
@@ -375,16 +373,20 @@ void V1Server::OnHttp(mg_connection* c, mg_http_message* hm) {
     const std::string& r = parts.size() > 2 ? parts[2] : "";
 
     if (r == "capabilities" && method == "GET") {
+      // 规范 §6.3：v1 只声明 credit。分片、作业、blob 都在 v1 的
+      // 范围之外，不能在这里许诺。
+      // stop_timeout_ms 暂不声明：Stop 现在还在事件循环上同步跑，
+      // 没有预算可言，等收尾线程那一批落地后再加回来。
       ReplyJson(c, 200,
                 {{"proto", 1},
                  {"server", "v1-base/0.1"},
-                 {"caps", {"credit", "frag", "jobs", "blobs"}},
+                 {"caps", {"credit"}},
                  {"limits",
                   {{"max_data_frame", kMaxDataFrameBytes},
                    {"default_window", kDefaultWindowBytes},
                    {"buffer_bytes", {{"sample", 4194304}, {"record", 8388608}}},
                    {"send_queue_bytes", kSendQueueBytes},
-                   {"frag_timeout_ms", 5000},
+                   {"send_queue_drain_ms", kSendQueueDrainMs},
                    {"ring_total_bytes", kRingTotalBytes}}}});
       return;
     }
