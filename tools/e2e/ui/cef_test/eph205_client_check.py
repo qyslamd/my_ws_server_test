@@ -148,7 +148,12 @@ def main():
         return true;
     """)
     click("登录")
-    wait_text("管理员")
+    wait_text("通讯正常")
+    # 角色写在头像的 title 上，不是页面可见文字
+    roles = js("return [...document.querySelectorAll('[title]')]"
+               ".map(e => e.title).join('|');") or ""
+    if "管理员" not in roles:
+        raise RuntimeError("没有管理员标识: " + roles[:200])
     if "仿真中" not in text():
         click("启动仿真")
     wait_text("仿真中")
@@ -159,7 +164,14 @@ def main():
     el = call("POST", "/element", {"using": "css selector", "value": "input[type=file]"})[
         "element-6066-11e4-a52e-4f735466cecf" ]
     call("POST", f"/element/{el}/value", {"text": CSV_PATH, "value": list(CSV_PATH)})
-    wait_text("导入 7 项")
+    # 导入成功弹的是 toast，会自己消失；以表格行数为准
+    for _ in range(200):
+        if js("return document.querySelectorAll("
+              "\"[data-page='items'] tbody tr\").length;") == 7:
+            break
+        time.sleep(0.25)
+    else:
+        raise RuntimeError("导入后表格不是 7 行")
     click("开始测试")
     wait_text("已完成")
     time.sleep(1.2)
