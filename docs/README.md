@@ -25,7 +25,6 @@ status: active
 spec/
   01-ws-protocol.md             v0 demo 规范（存档，先读它了解背景）
   02-ws-protocol-v1.md          v1 协议正文（设计稿，唯一正文）
-  03-v1-checklist.md            v1 落地检查清单（活文档）
 guide/
   01-什么是http协议.md            HTTP/REST 入门：资源、方法、状态码
   02-什么是websocket协议.md       WebSocket 入门：为什么要它、怎么握手、帧怎么传
