@@ -160,7 +160,7 @@ GET  /ws?sid=...             1:1 会话（先建 WS，REST 带 X-Session-Id）
 }
 ```
 
-进度事件 `eph205.job.progress`：
+进度事件 `biz.job.progress`：
 
 ```json
 {"jobId":"job-1","state":"running","done":62,"total":640,

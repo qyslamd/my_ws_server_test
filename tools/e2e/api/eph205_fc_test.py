@@ -7,6 +7,7 @@ import socket
 import struct
 import sys
 import time
+import urllib.error
 import urllib.request
 from urllib.parse import urlparse
 
@@ -99,10 +100,9 @@ def count_frames(sock, seconds):
 def run_items(count):
     items = [{"seq": i + 1, "p": i + 1, "n": 2, "wire": 0, "range": 0,
               "minOhms": 0, "maxOhms": 0, "measure": True} for i in range(count)]
-    return api("POST", "/api/v1/jobs", {
-        "ns": "eph205", "type": "measure_run",
-        "input": {"product": {"model": "FC"}, "operator": "t",
-                  "items": items, "deviceSource": "simulation"}})["jobId"]
+    return api("POST", "/api/v1/commands/eph205/measure_run", {
+        "product": {"model": "FC"}, "operator": "t",
+        "items": items, "deviceSource": "simulation"})["result"]["jobId"]
 
 
 def main():
@@ -113,17 +113,20 @@ def main():
     command("sim_start", {"port": "COM8"})
     command("connect", {"port": "COM7"})
 
-    print("[1] window:0 订阅 → 不应有任何数据帧")
-    api("POST", "/api/v1/subscriptions", {"streams": [{"id": 1, "window": 0}]})
-    run_items(200)
-    time.sleep(2)
-    frames, _ = count_frames(sock, 1.5)
-    print("    收到帧数:", frames)
-    assert frames == 0, "window:0 仍然在推数据"
+    print("[1] window:0 订阅 → 422 + 2005（v1 没有暂停订阅这种状态）")
+    try:
+        api("POST", "/api/v1/subscriptions",
+            {"streams": [{"streamId": 1, "window": 0}]})
+        raise AssertionError("window:0 应当被拒")
+    except urllib.error.HTTPError as err:
+        body = json.loads(err.read())
+        print("    返回:", err.code, body)
+        assert err.code == 422 and body.get("code") == 2005
 
     print("\n[2] window=1000 订阅，不归还额度 → 推一帧后暂停")
-    api("DELETE", "/api/v1/subscriptions/1")
-    out = api("POST", "/api/v1/subscriptions", {"streams": [{"id": 1, "window": 1000}]})
+    # 上一段被 422 拒掉，这里没有旧订阅要清
+    out = api("POST", "/api/v1/subscriptions",
+              {"streams": [{"streamId": 1, "window": 1000}]})
     print("    订阅窗口:", out["subscriptions"][0]["window"])
     run_items(200)
     frames, payload = count_frames(sock, 2.0)
@@ -136,7 +139,7 @@ def main():
 
     print("\n[3] 归还额度 → 恢复推送")
     ws_send(sock, json.dumps({"type": "credit",
-                              "streams": [{"id": 1, "bytes": 100000}]}))
+                              "streams": [{"streamId": 1, "bytes": 100000}]}))
     frames3, _ = count_frames(sock, 2.0)
     print("    归还后收到帧数:", frames3)
     assert frames3 >= 1, "归还额度后没有恢复推送"

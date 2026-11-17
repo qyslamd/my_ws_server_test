@@ -617,9 +617,19 @@ void V1Server::OnHttp(mg_connection* c, mg_http_message* hm) {
           ReplyError(c, 404, 2002, "stream not found", {{"streamId", id}});
           return;
         }
+        // window 只要求大于 0（规范 §6.4）：传 0、负数或非数字都是
+        // 客户端算错了，直接拒掉，别让它换来一个永远不推数据的订阅
+        const bool is_state_stream = desc->cls == "state";
+        if (!is_state_stream && item.contains("window")) {
+          const auto& win = item["window"];
+          if (!win.is_number_unsigned() || win.get<uint64_t>() == 0) {
+            ReplyError(c, 422, 2005, "window must be > 0", {{"streamId", id}});
+            return;
+          }
+        }
         Subscription sub;
-        sub.window = item.value("window", kDefaultWindowBytes);
-        sub.meta_sent = false;
+        sub.window =
+            is_state_stream ? 0 : item.value("window", kDefaultWindowBytes);
         // 重订阅不清欠账，否则客户端靠"再订阅一次"就能把窗口翻倍
         auto existing = s->subs.find(id);
         if (existing != s->subs.end()) {
@@ -715,66 +725,6 @@ void V1Server::OnHttp(mg_connection* c, mg_http_message* hm) {
         return;
       }
       ReplyJson(c, 200, {{"ok", true}, {"result", result}});
-      return;
-    }
-    if (r == "jobs" && parts.size() == 3 && method == "POST") {
-      json body;
-      if (!ParseBody(hm, body)) {
-        ReplyError(c, 400, 1001, "invalid json");
-        return;
-      }
-      std::string ns = body.value("ns", "");
-      if (ns.empty()) {
-        if (modules_.size() == 1) {
-          ns = modules_.begin()->first;
-        } else {
-          ReplyError(c, 400, 1003, "body must contain ns");
-          return;
-        }
-      }
-      Module* m = FindModule(ns);
-      if (m == nullptr) {
-        ReplyError(c, 404, 2004, "unknown module");
-        return;
-      }
-      std::string job_id;
-      std::string err;
-      if (!m->StartJob(body.value("type", "job"),
-                       body.value("input", json::object()), job_id, err)) {
-        ReplyError(c, 409, 2006, err);
-        return;
-      }
-      job_owner_[job_id] = m;
-      ReplyJson(c, 202, {{"jobId", job_id}});
-      return;
-    }
-    if (r == "jobs" && parts.size() == 4 && method == "GET") {
-      Module* m = FindJobModule(parts[3]);
-      if (m == nullptr) {
-        ReplyError(c, 404, 2002, "job not found");
-        return;
-      }
-      json st = m->JobStatus(parts[3]);
-      if (st.is_null()) {
-        ReplyError(c, 404, 2002, "job not found");
-        return;
-      }
-      ReplyJson(c, 200, st);
-      return;
-    }
-    if (r == "jobs" && parts.size() == 4 && method == "DELETE") {
-      Module* m = FindJobModule(parts[3]);
-      if (m == nullptr) {
-        ReplyError(c, 404, 2002, "job not found");
-        return;
-      }
-      json payload;
-      std::string err;
-      if (!m->CancelJob(parts[3], err, payload)) {
-        ReplyError(c, 409, 2006, err);
-        return;
-      }
-      ReplyJson(c, 200, payload);
       return;
     }
     if (r == "logs" && method == "GET") {
@@ -1122,26 +1072,16 @@ void V1Server::Tick() {
   TickStop(now);
   CheckHeartbeat(now);
 
-  for (auto& job : modules_) {
+  // 业务事件：模块排队，这里取走并原样转发。框架不认识事件名，
+  // 也不在里面夹带任何自己的东西（规范 §6.6、§7.8）
+  for (auto& kv : modules_) {
     std::string event_name;
     json event_payload;
-    if (!job.second->JobTick(now, event_name, event_payload)) {
-      continue;
-    }
-    if (event_name == "core.job.progress" &&
-        event_payload.value("state", "") == "completed") {
-      const std::string text = event_payload.dump(2);
-      std::vector<uint8_t> bytes(text.begin(), text.end());
-      const std::string blob = AddBlob("application/json", bytes);
-      event_payload["artifacts"] =
-          json::array({{{"blobId", blob},
-                        {"name", "job-result.json"},
-                        {"contentType", "application/json"}}});
-      job_owner_[event_payload.value("jobId", "")] = job.second;
-    }
-    Session* active = ActiveSession();
-    if (active != nullptr) {
-      SendEvent(active, event_name, event_payload);
+    while (kv.second->PollEvent(now, event_name, event_payload)) {
+      Session* active = ActiveSession();
+      if (active != nullptr) {
+        SendEvent(active, event_name, event_payload);
+      }
     }
   }
 
@@ -1226,7 +1166,7 @@ void V1Server::SendStreamFrames(Session* s, uint64_t now) {
             std::to_string(payload.size()) + " B 超过可用额度 " +
             std::to_string(rest) + " B，超发一帧");
       }
-      SendStreamFrame(s, id, sub, stream, seq, ts_ns, payload, {}, true);
+      SendStreamFrame(s, id, sub, stream, seq, ts_ns, payload, true);
       if (overshoot) {
         break;  // 超发一帧后收手，等归还
       }
@@ -1273,7 +1213,7 @@ void V1Server::SendStateFrames(Session* s, uint64_t now) {
     }
     const StreamInfo* stream = nullptr;
     FindStreamModule(id, &stream);
-    SendStreamFrame(s, id, sub, stream, seq, ts_ns, payload, {}, false);
+    SendStreamFrame(s, id, sub, stream, seq, ts_ns, payload, false);
     ++frames;
     bytes += payload.size();
     state_rr_ = id;
@@ -1282,18 +1222,24 @@ void V1Server::SendStateFrames(Session* s, uint64_t now) {
 
 void V1Server::SendStreamFrame(Session* s, uint32_t id, Subscription& sub,
                                const StreamInfo* stream, uint32_t seq,
-                               uint64_t ts_ns, const std::vector<uint8_t>& data,
-                               const std::vector<uint8_t>& records,
+                               uint64_t ts_ns, const std::vector<uint8_t>& payload,
                                bool charge) {
-  const bool with_meta = !sub.meta_sent;
-  const std::string meta =
-      with_meta && stream != nullptr ? stream->meta : std::string();
-  const auto frame = BuildFrame(id, seq, ts_ns, with_meta ? kSnapshot : kDelta,
-                                with_meta, meta, data, records);
+  // 块按流的类型选：record 走 RECORDS，其余走 DATA（规范 §7.6）。
+  // 缓冲里存的就是这两种块的 body，原样搬进帧即可。
+  // 常规数据帧一律 DELTA，META 只在 HTTP 上给（规范 §7.2、§7.5）
+  const bool is_record = stream != nullptr && stream->cls == "record";
+  std::vector<uint8_t> data;
+  std::vector<uint8_t> records;
+  if (is_record) {
+    records = payload;
+  } else {
+    data = payload;
+  }
+  const auto frame =
+      BuildFrame(id, seq, ts_ns, kDelta, false, std::string(), data, records);
   mg_ws_send(s->ws, frame.data(), frame.size(), WEBSOCKET_OP_BINARY);
-  sub.meta_sent = true;
   if (charge) {
-    sub.outstanding += data.size() + records.size();
+    sub.outstanding += payload.size();
   }
 }
 
@@ -1492,11 +1438,6 @@ Module* V1Server::FindParamModule(const std::string& scope) const {
     }
   }
   return nullptr;
-}
-
-Module* V1Server::FindJobModule(const std::string& job_id) const {
-  auto it = job_owner_.find(job_id);
-  return it == job_owner_.end() ? nullptr : it->second;
 }
 
 void V1Server::TickFn(void* arg) { static_cast<V1Server*>(arg)->Tick(); }

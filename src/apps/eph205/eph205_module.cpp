@@ -402,7 +402,9 @@ nlohmann::json Eph205Module::State() const {
            {"total", job_->total.load()},
            {"passed", job_->passed.load()},
            {"failed", job_->failed.load()},
-           {"measureFailed", job_->measure_failed.load()}};
+           {"measureFailed", job_->measure_failed.load()},
+           {"recordId", job_->record_id},
+           {"summary", job_->summary}};
   }
   return {{"connected", connected_},
           {"port", connected_port_},
@@ -492,6 +494,14 @@ bool Eph205Module::AdminOnly(const std::string& action) const {
 bool Eph205Module::Command(const std::string& action,
                            const nlohmann::json& payload,
                            nlohmann::json& result, std::string& err) {
+  // 长任务就是两条业务命令，框架不再替业务管作业（规范 §6.6）
+  if (action == "measure_run") {
+    return StartMeasureJob(payload, result, err);
+  }
+  if (action == "job_cancel") {
+    return CancelMeasureJob(payload, result, err);
+  }
+
   bool job_running = false;
   {
     std::lock_guard<std::mutex> lock(mu_);
@@ -916,13 +926,8 @@ bool Eph205Module::HandleCommand(const std::string& action,
 
 // -------------------------------------------------------------------- 作业
 
-bool Eph205Module::StartJob(const std::string& type,
-                            const nlohmann::json& input, std::string& job_id,
-                            std::string& err) {
-  if (type != "measure_run") {
-    err = "未知作业类型: " + type;
-    return false;
-  }
+bool Eph205Module::StartMeasureJob(const nlohmann::json& input,
+                                   nlohmann::json& result, std::string& err) {
   if (!input.contains("items") || !input["items"].is_array() ||
       input["items"].empty()) {
     err = "items 不能为空";
@@ -944,7 +949,7 @@ bool Eph205Module::StartJob(const std::string& type,
     job->total = static_cast<int>(input["items"].size());
     job_ = job;
   }
-  job_id = job->id;
+  result = {{"jobId", job->id}};
   Log("开始测量 " + job->id + "，共 " + std::to_string(job->total.load()) +
       " 项");
 
@@ -1000,7 +1005,7 @@ void Eph205Module::FinishJob(const std::shared_ptr<Job>& job) {
     job->finished.store(true);
     summary = job->summary;
   }
-  PushEvent("eph205.job.progress",
+  PushEvent("biz.job.progress",
             {{"jobId", job->id},
              {"state", summary.value("status", "completed")},
              {"done", job->done.load()},
@@ -1030,7 +1035,7 @@ void Eph205Module::DoMeasureRun(const std::shared_ptr<Job>& job,
   int failed = 0;
   int measure_failed = 0;
 
-  PushEvent("eph205.job.progress", {{"jobId", job->id},
+  PushEvent("biz.job.progress", {{"jobId", job->id},
                                     {"state", "running"},
                                     {"done", 0},
                                     {"total", total}});
@@ -1181,7 +1186,7 @@ void Eph205Module::DoMeasureRun(const std::shared_ptr<Job>& job,
     job->passed.store(passed);
     job->failed.store(failed);
     job->measure_failed.store(measure_failed);
-    PushEvent("eph205.job.progress", {{"jobId", job->id},
+    PushEvent("biz.job.progress", {{"jobId", job->id},
                                       {"state", "running"},
                                       {"done", done},
                                       {"total", total},
@@ -1250,8 +1255,8 @@ void Eph205Module::DoMeasureRun(const std::shared_ptr<Job>& job,
   FinishJob(job);
 }
 
-bool Eph205Module::JobTick(uint64_t /*now_ms*/, std::string& event_name,
-                           nlohmann::json& payload) {
+bool Eph205Module::PollEvent(uint64_t /*now_ms*/, std::string& event_name,
+                             nlohmann::json& payload) {
   std::lock_guard<std::mutex> lock(mu_);
   if (events_.empty()) {
     return false;
@@ -1262,26 +1267,9 @@ bool Eph205Module::JobTick(uint64_t /*now_ms*/, std::string& event_name,
   return true;
 }
 
-nlohmann::json Eph205Module::JobStatus(const std::string& id) const {
-  std::lock_guard<std::mutex> lock(mu_);
-  if (!job_ || job_->id != id) {
-    return nlohmann::json();
-  }
-  return {
-      {"jobId", job_->id},
-      {"type", job_->type},
-      {"state", job_->finished.load() ? job_->state : std::string("running")},
-      {"done", job_->done.load()},
-      {"total", job_->total.load()},
-      {"passed", job_->passed.load()},
-      {"failed", job_->failed.load()},
-      {"measureFailed", job_->measure_failed.load()},
-      {"recordId", job_->record_id},
-      {"summary", job_->summary}};
-}
-
-bool Eph205Module::CancelJob(const std::string& id, std::string& err,
-                             nlohmann::json& payload) {
+bool Eph205Module::CancelMeasureJob(const nlohmann::json& input,
+                                    nlohmann::json& result, std::string& err) {
+  const std::string id = input.value("jobId", "");
   std::lock_guard<std::mutex> lock(mu_);
   if (!job_ || job_->id != id) {
     err = "作业不存在";
@@ -1292,7 +1280,7 @@ bool Eph205Module::CancelJob(const std::string& id, std::string& err,
     return false;
   }
   job_->cancel.store(true);
-  payload = {{"jobId", id}, {"cancelling", true}};
+  result = {{"jobId", id}, {"cancelling", true}};
   return true;
 }
 

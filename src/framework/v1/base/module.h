@@ -49,13 +49,13 @@ class Module {
   // 数据一律通过 AttachSink 拿到的推送口写入通讯层缓冲，
   // "服务端来拉"那套已经删掉：缓冲在哪、丢哪一帧，只有通讯层说了算。
 
-  virtual bool StartJob(const std::string& type, const nlohmann::json& input,
-                        std::string& job_id, std::string& err) = 0;
-  virtual bool JobTick(uint64_t now_ms, std::string& event_name,
-                       nlohmann::json& payload) = 0;
-  virtual nlohmann::json JobStatus(const std::string& id) const = 0;
-  virtual bool CancelJob(const std::string& id, std::string& err,
-                         nlohmann::json& payload) = 0;
+  // 业务事件出口：模块把要推给客户端的事件排进自己的队列，通讯层每个
+  // tick 来取一次并原样转发。事件名由业务定义（规范 §7.8）。
+  // 长任务不再有框架侧的抽象：启动走 Command，进度走这里（规范 §6.6）
+  virtual bool PollEvent(uint64_t /*now_ms*/, std::string& /*name*/,
+                         nlohmann::json& /*payload*/) {
+    return false;
+  }
 
   virtual nlohmann::json Logs() const = 0;
 };

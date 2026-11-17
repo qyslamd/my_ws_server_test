@@ -15,8 +15,10 @@
 import base64
 import json
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.error
 import urllib.request
@@ -27,11 +29,22 @@ DRIVER = "http://127.0.0.1:9515"
 APP = "http://127.0.0.1:8790/eph205/"
 HEALTH = "http://127.0.0.1:8790/api/v1/health"
 EDGE = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+# 独立且每次清空的配置目录：默认配置会缓存上一次的页面模块，
+# 改了 js 却还是跑旧代码，排查起来极难
+PROFILE = os.path.join(tempfile.gettempdir(), "eph205-e2e-profile")
 ROOT = r"D:\trae_workspace\cef109_ws_base_env"
 BUILD_DIR = os.path.join("build", "ninja-x64-release")
 CSV_PATH = os.path.join(ROOT, "temp", "eph205_items.csv")
 XLSX_PATH = os.path.join(ROOT, "temp", "eph205_items.xlsx")
 SHOT = os.path.join(ROOT, "temp", "eph205_e2e.png")
+
+# 步骤之间的停顿：默认 1.5 秒，肉眼跟着看时用 E2E_STEP_DELAY 调大
+PAUSE_SEC = float(os.environ.get("E2E_STEP_DELAY", "1.5"))
+
+
+def pause(scale=1.0):
+    time.sleep(PAUSE_SEC * scale)
+
 
 CSV = """序号,P,N,线制,量程,下限,上限,测量
 1,1,2,二线,0,90,110,1
@@ -162,10 +175,11 @@ def main():
         f.write(CSV)
     print("测试项 CSV:", CSV_PATH)
 
+    shutil.rmtree(PROFILE, ignore_errors=True)
     caps = {"capabilities": {"alwaysMatch": {
         "browserName": "MicrosoftEdge",
         "ms:edgeOptions": {"binary": EDGE, "args": [
-            "--headless=new", "--disable-gpu", "--no-first-run",
+            "--disable-gpu", "--no-first-run", "--user-data-dir=" + PROFILE,
             "--window-size=1400,900", "--remote-allow-origins=*"]}}}}
     sid = http("POST", DRIVER + "/session", caps)["value"]["sessionId"]
     print("session:", sid)
@@ -173,12 +187,14 @@ def main():
     try:
         call(sid, "POST", "/url", {"url": APP})
         print("打开", APP)
+        pause()
 
         login(sid, "admin", "admin")
         wait_xpath(sid, "//span[contains(., '通讯正常')]", label="通讯正常")
-        wait_xpath(sid, "//span[contains(@class,'tag')][contains(normalize-space(.), '管理员')]",
-                   label="管理员标识")
+        # 角色写在头像的 title 上（admin · 管理员），不是独立徽标
+        wait_xpath(sid, "//*[contains(@title, '管理员')]", label="管理员标识")
         print("  WS 已连接，当前为管理员")
+        pause()
 
         try:
             find(sid, "//button[normalize-space(.)='停止仿真']")
@@ -186,10 +202,12 @@ def main():
         except Exception:
             click_text(sid, "启动仿真")
         wait_xpath(sid, "//span[contains(., '仿真中')]", label="仿真中")
+        pause()
 
         click_text(sid, "连接")
         wait_xpath(sid, "//*[contains(text(), '已连接 COM7')]", label="已连接 COM7")
         print("  设备已连接")
+        pause()
 
         # AntD Upload 的 input 默认隐藏，先取消隐藏再投递文件
         js(sid, """
@@ -206,6 +224,7 @@ def main():
         print("  已投递 CSV")
 
         wait_xpath(sid, "//div[@data-page='items']//tbody/tr", label="导入后的表格行")
+        pause()
 
         # Excel 导入：读第一张（或名为“测试项”的）工作表
         print("[3b] Excel 导入")
@@ -223,6 +242,7 @@ def main():
         print("  Excel 导入后表格行数:", rows)
         if rows != 4:
             raise RuntimeError(f"Excel 导入行数不对: {rows}")
+        pause()
 
         # 换回 CSV，后面的统计按 7 项校验
         el = find(sid, "//input[@type='file']")
@@ -242,6 +262,7 @@ def main():
 
         # 导入完成后把临时取消隐藏的文件框收回去
         js(sid, "const f=document.querySelector('input[type=file]'); if(f) f.style.display='none'; return true;")
+        pause()
         click_text(sid, "开始测试")
         print("  等待测量完成…")
 
@@ -252,6 +273,7 @@ def main():
             time.sleep(0.25)
         else:
             raise RuntimeError("测量没有在 30 秒内完成")
+        pause()
 
         stats = js(sid, """
             const vals = [...document.querySelectorAll('.stat-value')].map(e => e.textContent);
@@ -372,7 +394,7 @@ def main():
         print("\n[7] 角色校验")
         click_text(sid, "退出")
         login(sid, "operator", "operator")
-        wait_xpath(sid, "//span[contains(@class,'tag')][contains(normalize-space(.), '操作员')]",
+        wait_xpath(sid, "//*[contains(@title, '操作员')]",
                    label="操作员标识")
         try:
             find(sid, "//button[normalize-space(.)='调试']")

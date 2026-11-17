@@ -169,19 +169,15 @@ def main():
     command("sim_set", {"p": 4, "n": 5, "over": True})
     items[4]["measure"] = False
 
-    status, out = api("POST", "/api/v1/jobs", {
-        "ns": "eph205",
-        "type": "measure_run",
-        "input": {
-            "product": {"model": "EPH205-DEMO", "code": "SN-0001"},
-            "operator": "tester",
-            "items": items,
-            "deviceSource": "simulation",
-        },
+    status, out = api("POST", "/api/v1/commands/eph205/measure_run", {
+        "product": {"model": "EPH205-DEMO", "code": "SN-0001"},
+        "operator": "tester",
+        "items": items,
+        "deviceSource": "simulation",
     })
-    if status != 202:
-        raise RuntimeError(f"提交作业失败: {status} {out}")
-    job_id = out["jobId"]
+    if status != 200:
+        raise RuntimeError(f"启动测量失败: {status} {out}")
+    job_id = out["result"]["jobId"]
     print(f"  jobId={job_id}")
 
     print("\n[5] 接收进度事件")
@@ -201,7 +197,7 @@ def main():
             continue
         name = msg.get("name", "")
         payload = msg.get("data", msg.get("payload", {}))
-        if name == "eph205.job.progress":
+        if name == "biz.job.progress":
             state = payload.get("state")
             print(f"  {state:<9} {payload.get('done')}/{payload.get('total')} "
                   f"pass={payload.get('passed')} fail={payload.get('failed')} "
@@ -215,8 +211,10 @@ def main():
     print("  summary:", json.dumps(final.get("summary"), ensure_ascii=False))
 
     print("\n[6] 作业状态 / 历史")
-    status, out = api("GET", f"/api/v1/jobs/{job_id}")
-    print("  job:", json.dumps(out, ensure_ascii=False)[:300])
+    status, out = api("GET", "/api/v1/state")
+    job = next((m["state"]["job"] for m in out["modules"]
+                if m["ns"] == "eph205"), {})
+    print("  job:", json.dumps(job, ensure_ascii=False)[:300])
     status, out = api("POST", "/api/v1/commands/eph205/history_list",
                       {"offset": 0, "limit": 5})
     print("  history total:", out["result"]["total"])

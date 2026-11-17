@@ -421,7 +421,7 @@ export function createMeasurePage({ getState, getRole, refresh }) {
     renderStats();
     btnExport.disabled = true;
     try {
-      jobId = await api.startJob('measure_run', {
+      jobId = await api.startJob({
         product: { model: modelInput.value, code: codeInput.value },
         operator: operatorInput.value,
         items: itemsToJson(items),

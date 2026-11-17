@@ -38,7 +38,6 @@ class V1Server {
   struct Subscription {
     uint64_t window = 1048576;
     uint64_t outstanding = 0;
-    bool meta_sent = false;
     // 额度耗尽开始的时刻（0 表示没耗尽），用于节流日志
     uint64_t stalled_ms = 0;
     // 还没报出去的溢出区间：第一次立刻报，之后 500 毫秒合并一次
@@ -129,15 +128,13 @@ class V1Server {
   void SendStateFrames(Session* s, uint64_t now);
   void SendStreamFrame(Session* s, uint32_t id, Subscription& sub,
                        const StreamInfo* stream, uint32_t seq, uint64_t ts_ns,
-                       const std::vector<uint8_t>& data,
-                       const std::vector<uint8_t>& records, bool charge);
+                       const std::vector<uint8_t>& payload, bool charge);
   // 把缓冲里的溢出统计变成 core.overrun 事件和 opcode=ERROR 帧
   void ReportOverrun(Session* s, uint32_t id, Subscription& sub, uint64_t now);
 
   Module* FindModule(const std::string& ns) const;
   Module* FindStreamModule(uint32_t stream_id, const StreamInfo** stream) const;
   Module* FindParamModule(const std::string& scope) const;
-  Module* FindJobModule(const std::string& job_id) const;
 
   Session* ActiveSession();
   Session* SessionFromHeader(mg_http_message* hm);
@@ -161,7 +158,6 @@ class V1Server {
 
   std::map<std::string, Module*> modules_;
   std::map<std::string, MediaSource*> media_sources_;
-  std::map<std::string, Module*> job_owner_;
   std::map<std::string, Session> sessions_;
   // 模块线程拿到的就是这个口子背后的对象。会话结束置空 = 立刻断生产，
   // 比"等模块停完再释放"更稳，也不用去推理线程退出的时机（方案 5.1）

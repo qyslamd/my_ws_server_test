@@ -60,7 +60,7 @@ applyTheme((() => {
 // ---------------------------------------------------------------- 事件分发
 
 api.onEvent((name, payload) => {
-  if (name === 'eph205.job.progress') {
+  if (name === 'biz.job.progress') {
     app.progress = payload;
     app.pages.get('measure')?.onProgress?.(payload);
   }

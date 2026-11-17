@@ -6,7 +6,7 @@
 // 线程模型：
 //   - 通讯层（HTTP/WS）只在主线程调用本类；
 //   - 串口事务全部在 worker_ 线程执行，主线程通过 RunSync 等待结果；
-//   - 长时间测量跑成作业，进度通过 JobTick 每 10 ms 推一条事件；
+//   - 长时间测量由 measure_run 命令启动，进度经 PollEvent 推出；
 //   - 仿真器有自己的线程（SimulatorLink），主线程直接读写它的配置。
 
 #include <atomic>
@@ -60,12 +60,8 @@ class Eph205Module : public v1::Module {
   // 通讯层注册时把推送口交进来；拿到之后读数直接推到缓冲，不再自己排队
   void AttachSink(v1::StreamSink* sink) override;
 
-  bool StartJob(const std::string& type, const nlohmann::json& input,
-                std::string& job_id, std::string& err) override;
-  bool JobTick(uint64_t now_ms, std::string& event_name,
-               nlohmann::json& payload) override;
-  nlohmann::json JobStatus(const std::string& id) const override;
-  bool CancelJob(const std::string& id, std::string& err,
+  // 测量进度先排进 events_，通讯层每 tick 来取一次并转发
+  bool PollEvent(uint64_t now_ms, std::string& event_name,
                  nlohmann::json& payload) override;
 
   nlohmann::json Logs() const override;
@@ -106,6 +102,12 @@ class Eph205Module : public v1::Module {
   // 在 worker 线程里跑
   void DoMeasureRun(const std::shared_ptr<Job>& job,
                     const nlohmann::json& input);
+
+  // 长任务的入口与取消：都走业务命令，不再有框架侧的作业抽象
+  bool StartMeasureJob(const nlohmann::json& input, nlohmann::json& result,
+                       std::string& err);
+  bool CancelMeasureJob(const nlohmann::json& input, nlohmann::json& result,
+                        std::string& err);
 
   // 作业事件与实时读数
   void PushEvent(const std::string& name, nlohmann::json payload);

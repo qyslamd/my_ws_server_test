@@ -156,7 +156,7 @@ export class Client {
 
   async subscribe(streamId, windowBytes = 4 * 1024 * 1024) {
     const out = await this.call('POST', '/api/v1/subscriptions', {
-      streams: [{ id: streamId, window: windowBytes }],
+      streams: [{ streamId, window: windowBytes }],
     });
     this.subscribed.add(streamId);
     return out;
@@ -173,20 +173,18 @@ export class Client {
 
   credit(streamId, bytes) {
     if (!this.wsOpen) return;
-    this.ws.send(JSON.stringify({ type: 'credit', streams: [{ id: streamId, bytes }] }));
+    this.ws.send(JSON.stringify({ type: 'credit', streams: [{ streamId, bytes }] }));
   }
 
-  async startJob(type, input) {
-    const out = await this.call('POST', '/api/v1/jobs', { ns: 'eph205', type, input });
-    return out.jobId;
-  }
-
-  async jobStatus(id) {
-    return this.call('GET', `/api/v1/jobs/${id}`);
+  // 长任务走业务命令：启动拿 jobId，进度从 biz.job.progress 事件来，
+  // 结束后用 GET /api/v1/state 的 modules[].job 取结果
+  async startJob(input) {
+    const out = await this.call('POST', '/api/v1/commands/eph205/measure_run', input);
+    return out.result.jobId;
   }
 
   async cancelJob(id) {
-    return this.call('DELETE', `/api/v1/jobs/${id}`);
+    return this.call('POST', '/api/v1/commands/eph205/job_cancel', { jobId: id });
   }
 
   async logs() {

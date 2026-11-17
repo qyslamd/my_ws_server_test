@@ -102,19 +102,6 @@ class FakeModule : public v1::Module {
                  nlohmann::json&, std::string&) override {
     return true;
   }
-  bool StartJob(const std::string&, const nlohmann::json&, std::string&,
-                std::string&) override {
-    return false;
-  }
-  bool JobTick(uint64_t, std::string&, nlohmann::json&) override {
-    return false;
-  }
-  nlohmann::json JobStatus(const std::string&) const override {
-    return nlohmann::json();
-  }
-  bool CancelJob(const std::string&, std::string&, nlohmann::json&) override {
-    return false;
-  }
   nlohmann::json Logs() const override { return nlohmann::json::array(); }
 
   v1::StreamSink* sink() const { return sink_; }

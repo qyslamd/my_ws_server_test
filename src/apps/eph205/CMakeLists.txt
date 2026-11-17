@@ -45,10 +45,22 @@ if(MSVC)
 endif()
 
 # 页面跟着提供它的程序走：复制到 exe 同级，服务端按工作目录的 "www" 找。
-# 挂在目标上而不是 ALL，只构建别的目标时不会白复制一遍。
-add_custom_command(TARGET eph205_server POST_BUILD
+#
+# 以前挂在 eph205_server 的 POST_BUILD 上，结果是只改页面不重链接时
+# 构建目录里还是旧页面，改了没效果。改成按文件时间戳的规则：
+# 页面变了就复制，没变不复制。
+file(GLOB_RECURSE EPH205_WWW_FILES CONFIGURE_DEPENDS
+     "${CMAKE_CURRENT_SOURCE_DIR}/www/*")
+
+add_custom_command(
+  OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/www.stamp"
   COMMAND ${CMAKE_COMMAND} -E copy_directory
           "${CMAKE_CURRENT_SOURCE_DIR}/www"
           "$<TARGET_FILE_DIR:eph205_server>/www"
+  COMMAND ${CMAKE_COMMAND} -E touch "${CMAKE_CURRENT_BINARY_DIR}/www.stamp"
+  DEPENDS ${EPH205_WWW_FILES} eph205_server
   COMMENT "复制页面到 $<TARGET_FILE_DIR:eph205_server>/www"
   VERBATIM)
+
+add_custom_target(copy_www ALL
+  DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/www.stamp")
