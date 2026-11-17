@@ -171,8 +171,8 @@ std::shared_ptr<v1::StreamBuffers> V1Server::Sink::Buffers() const {
   return server_->active_buffers_;
 }
 
-bool V1Server::Sink::PushSample(uint32_t stream_id, const uint8_t* data,
-                                std::size_t len) {
+bool V1Server::Sink::PushSample(uint32_t stream_id, uint64_t ts_ns,
+                                const uint8_t* data, std::size_t len) {
   // 超过协议上限的帧直接拒收：进环也没用，发送侧发不出去
   if (data == nullptr || len == 0 || len > kMaxDataFrameBytes) {
     return false;
@@ -181,7 +181,9 @@ bool V1Server::Sink::PushSample(uint32_t stream_id, const uint8_t* data,
   if (buffers == nullptr) {
     return false;
   }
-  return buffers->PushFrame(stream_id, data, len, mg_millis() * 1000000ULL);
+  // 没给时间戳就按调用时刻补，跟 record 那条路一致
+  const uint64_t stamp = ts_ns != 0 ? ts_ns : mg_millis() * 1000000ULL;
+  return buffers->PushFrame(stream_id, data, len, stamp);
 }
 
 bool V1Server::Sink::PushRecords(uint32_t stream_id,
@@ -563,7 +565,7 @@ void V1Server::OnHttp(mg_connection* c, mg_http_message* hm) {
       json streams = json::array();
       for (const auto& kv : modules_) {
         for (const auto& st : kv.second->streams()) {
-          streams.push_back({{"id", st.id},
+          streams.push_back({{"streamId", st.id},
                              {"name", st.name},
                              {"class", st.cls},
                              {"meta", json::parse(st.meta)}});
@@ -581,7 +583,7 @@ void V1Server::OnHttp(mg_connection* c, mg_http_message* hm) {
       }
       json out = json::array();
       for (const auto& item : body["streams"]) {
-        const uint32_t id = item.value("id", 0u);
+        const uint32_t id = item.value("streamId", 0u);
         const StreamInfo* desc = nullptr;
         Module* owner = FindStreamModule(id, &desc);
         if (owner == nullptr || desc == nullptr) {
@@ -857,7 +859,7 @@ void V1Server::OnWsMsg(mg_connection* c, mg_ws_message* wm) {
     }
     // 只接受非负整数：负数或字符串会让 get<uint64_t>() 抛异常，
     // 异常穿过 mongoose 的回调栈不是我们想要的死法。
-    const auto id_it = item.find("id");
+    const auto id_it = item.find("streamId");
     const auto bytes_it = item.find("bytes");
     if (id_it == item.end() || !id_it->is_number_unsigned() ||
         bytes_it == item.end() || !bytes_it->is_number_unsigned()) {
@@ -871,18 +873,17 @@ void V1Server::OnWsMsg(mg_connection* c, mg_ws_message* wm) {
     }
     const uint32_t id = static_cast<uint32_t>(id_it->get<uint64_t>());
     const uint64_t bytes = bytes_it->get<uint64_t>();
+    // 未知流、已退订流一律静默忽略：退订的帧可能还在路上，这是正常
+    // 竞态，不是客户端出错（规范 §8.2）
     auto sub = it->second.subs.find(id);
     if (sub == it->second.subs.end()) {
       continue;
     }
-    // state 不参与配额，给它还额度等于什么都没做（规范 §8.2）
+    // state 不参与配额，给它还额度等于什么都没做，同样静默忽略。
+    // 2005 只留给真正的格式错误，否则客户端统一归还时会被错误码刷屏
     const StreamInfo* stream = nullptr;
     FindStreamModule(id, &stream);
     if (stream != nullptr && stream->cls == "state") {
-      SendEvent(&it->second, "core.error",
-                {{"code", 2005},
-                 {"msg", "credit ignored: state stream"},
-                 {"streamId", id}});
       continue;
     }
     // 还的比欠的多：数值合法但超出窗口，超出部分截断（规范 §8.2）

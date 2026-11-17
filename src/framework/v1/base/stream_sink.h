@@ -18,9 +18,10 @@ class StreamSink {
  public:
   virtual ~StreamSink() = default;
 
-  // sample 类：一个负载就是一帧。
-  virtual bool PushSample(uint32_t stream_id, const uint8_t* data,
-                          std::size_t len) = 0;
+  // sample 类：一个负载就是一帧。ts_ns 是本帧第一个采样点的采集时刻，
+  // 不是调用时刻——两者隔着整帧的采集时长（规范 §7.7）
+  virtual bool PushSample(uint32_t stream_id, uint64_t ts_ns,
+                          const uint8_t* data, std::size_t len) = 0;
 
   // record 类：一批记录打成一帧，时间戳取第一条。
   virtual bool PushRecords(uint32_t stream_id,

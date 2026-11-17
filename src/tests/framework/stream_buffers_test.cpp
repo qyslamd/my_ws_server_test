@@ -202,6 +202,38 @@ TEST(StreamBuffers, StateSeqAdvancesOnlyWhenTaken) {
   EXPECT_EQ("b", Text(out));
 }
 
+// 还没人订阅时写下的状态值也要留着：订阅者一上来就该看到当前值
+TEST(StreamBuffers, StateKeptBeforeSubscribe) {
+  v1::StreamBuffers buffers;
+  const std::vector<uint8_t> payload = Bytes("idle");
+  buffers.SetState(7, payload.data(), payload.size());
+
+  ASSERT_TRUE(buffers.Open(7, 0, true));
+
+  std::vector<uint8_t> out;
+  uint32_t seq = 0;
+  uint64_t ts = 0;
+  ASSERT_TRUE(buffers.TakeFrame(7, 100, &out, &seq, &ts));
+  EXPECT_EQ("idle", Text(out));
+}
+
+// 退订只停发送，值留到会话结束（规范 §12），重新订阅还能拿到
+TEST(StreamBuffers, StateSurvivesUnsubscribe) {
+  v1::StreamBuffers buffers;
+  ASSERT_TRUE(buffers.Open(7, 0, true));
+  const std::vector<uint8_t> payload = Bytes("ready");
+  buffers.SetState(7, payload.data(), payload.size());
+
+  buffers.Close(7);
+  ASSERT_TRUE(buffers.Open(7, 0, true));
+
+  std::vector<uint8_t> out;
+  uint32_t seq = 0;
+  uint64_t ts = 0;
+  ASSERT_TRUE(buffers.TakeFrame(7, 100, &out, &seq, &ts));
+  EXPECT_EQ("ready", Text(out));
+}
+
 // 环写满后淘汰的统计要能透传出来，否则 core.overrun 报不出去。
 TEST(StreamBuffers, OverrunIsReported) {
   v1::StreamBuffers buffers;

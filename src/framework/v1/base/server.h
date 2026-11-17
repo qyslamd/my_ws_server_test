@@ -71,7 +71,7 @@ class V1Server {
   class Sink : public StreamSink {
    public:
     explicit Sink(V1Server* server) : server_(server) {}
-    bool PushSample(uint32_t stream_id, const uint8_t* data,
+    bool PushSample(uint32_t stream_id, uint64_t ts_ns, const uint8_t* data,
                     std::size_t len) override;
     bool PushRecords(uint32_t stream_id,
                      const std::vector<Record>& records) override;

@@ -49,9 +49,12 @@ void StreamBuffers::Close(uint32_t stream_id) {
   if (it == entries_.end()) {
     return;
   }
-  if (it->second->ring != nullptr) {
-    charged_ -= ChargeFor(it->second->ring->Capacity(), false);
+  // state 的值常驻到会话结束（规范 §12）：退订只是不再发送，值要留着，
+  // 否则重新订阅拿不到当前值。它不建环，也就没有预算要退。
+  if (it->second->is_state) {
+    return;
   }
+  charged_ -= ChargeFor(it->second->ring->Capacity(), false);
   entries_.erase(it);
 }
 
@@ -90,9 +93,20 @@ void StreamBuffers::SetState(uint32_t stream_id, const uint8_t* data,
   if (data == nullptr || len == 0) {
     return;
   }
-  const std::shared_ptr<Entry> entry = Find(stream_id);
-  if (entry == nullptr || !entry->is_state) {
-    return;
+  std::shared_ptr<Entry> entry = Find(stream_id);
+  if (entry == nullptr) {
+    // 还没订阅也要把值留下：订阅者一上来就该看到当前值（规范 §8.1 第 7 条）
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = entries_.find(stream_id);
+    if (it == entries_.end()) {
+      auto fresh = std::make_shared<Entry>();
+      fresh->is_state = true;  // 只有 state 流会走 SetState
+      it = entries_.emplace(stream_id, std::move(fresh)).first;
+    }
+    entry = it->second;
+  }
+  if (!entry->is_state) {
+    return;  // 业务把 SetState 用在了非 state 流上：忽略
   }
   std::lock_guard<std::mutex> lock(entry->mutex);
   entry->state_payload.assign(data, data + len);
