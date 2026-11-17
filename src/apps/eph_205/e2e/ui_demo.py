@@ -5,7 +5,7 @@
 批量导出）、工具（仿真点值/日志）、帮助与三维、退出并切到操作员看角色差异。
 
 用法：
-  python -I tools/e2e/ui/edge_webdriver/eph205_demo.py
+  python -I src/apps/eph_205/e2e/ui_demo.py
 
 前置：服务端已在 8790 运行（建议 --auth），EdgeDriver 在 9515。
 跑完不删除会话，浏览器留在桌面上。
@@ -26,7 +26,8 @@ DRIVER = "http://127.0.0.1:9515"
 APP = "http://127.0.0.1:8790/eph205/"
 HEALTH = "http://127.0.0.1:8790/api/v1/health"
 EDGE = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
-ROOT = r"D:\trae_workspace\cef109_ws_base_env"
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__),
+                                    "..", "..", "..", ".."))
 OUT = os.path.join(ROOT, "temp", "demo")
 DOWNLOADS = os.path.join(OUT, "downloads")
 DESKTOP = os.path.join(ROOT, "temp", "eph205_demo_desktop.png")

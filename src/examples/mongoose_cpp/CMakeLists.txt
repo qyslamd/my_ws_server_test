@@ -23,7 +23,7 @@ target_include_directories(${TARGET_NAME} PRIVATE "${JSON_DIR}")
 
 target_link_libraries(${TARGET_NAME} PRIVATE mongoose)
 
-# 页面归本 demo 所有;生产前端在 src/apps/eph205/www。
+# 页面归本 demo 所有;生产前端在 src/apps/eph_205/eph205_module/www。
 # 复制到构建目录根的 www-demo/,与 mongoose_server.cpp 的 root_dir 对应
 # (cwd 用构建目录启动)。用独立目录名,避免和产品页面 www/ 撞车。
 add_custom_command(TARGET ${TARGET_NAME} POST_BUILD

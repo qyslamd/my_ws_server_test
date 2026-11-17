@@ -1,6 +1,6 @@
 ﻿; EP-H205 安装包脚本（Inno Setup 6）
 ;
-; 先跑 tools\package_client.bat 生成 dist\EPH205，再用 ISCC 编译本脚本。
+; 先跑 srcpps\eph_205\packaging\package_client.bat 生成 dist\EPH205，再用 ISCC 编译本脚本。
 ; 也可以在 package_client.bat 里自动调用（检测到 ISCC 时会编译）。
 ;
 ; 手动编译：

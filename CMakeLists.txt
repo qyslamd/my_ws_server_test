@@ -91,9 +91,32 @@ add_subdirectory(src/common/log)
 add_subdirectory(src/framework/v1)
 
 # ============================================================
-# 子目标：EPH205 产品（模块 + 页面 + 入口）
+# CEF（可选）
+#
+# 必须在 src/apps 之前：产品目录里的桌面壳要用 find_package(CEF)
+# 给出的 CEF_BINARY_DIR_RELEASE / CEF_RESOURCE_DIR 复制运行时。
+# 放到产品后面执行，这两个变量在子目录里就是空的。
 # ============================================================
-add_subdirectory(src/apps/eph205)
+option(BUILD_CEF_SHELL "构建 CEF 桌面客户端（需要 3rdparty/cef-109）" OFF)
+
+if(BUILD_CEF_SHELL)
+  if(NOT EXISTS "${CMAKE_SOURCE_DIR}/3rdparty/cef-109/cmake/FindCEF.cmake")
+    message(FATAL_ERROR
+      "找不到 CEF: ${CMAKE_SOURCE_DIR}/3rdparty/cef-109\n"
+      "把 CEF 109 的二进制约解压到 3rdparty/cef-109 后再开 BUILD_CEF_SHELL。")
+  endif()
+  set(CEF_ROOT "${CMAKE_SOURCE_DIR}/3rdparty/cef-109" CACHE PATH "CEF binary distribution")
+  list(APPEND CMAKE_MODULE_PATH "${CEF_ROOT}/cmake")
+  find_package(CEF REQUIRED)
+  # wrapper 从源码编译，保证和我们的 CRT/编译选项一致
+  add_subdirectory(${CEF_LIBCEF_DLL_WRAPPER_PATH} libcef_dll_wrapper EXCLUDE_FROM_ALL)
+  add_subdirectory(src/common/cef_shell)
+endif()
+
+# ============================================================
+# 子目标：产品（一个目录一个产品：模块 + 桌面壳）
+# ============================================================
+add_subdirectory(src/apps)
 
 # ============================================================
 # 子目标：示例
@@ -114,27 +137,4 @@ include(CTest)
 
 if(BUILD_TESTING)
   add_subdirectory(src/tests)
-endif()
-
-# ============================================================
-# 子目标：桌面客户端（CEF 窗口外壳 + 进程内服务端）
-#
-# CEF 二进制放在 3rdparty/cef-109（不入库），默认不参与构建：
-#   cmake -DBUILD_CEF_SHELL=ON ...
-# ============================================================
-option(BUILD_CEF_SHELL "构建 CEF 桌面客户端（需要 3rdparty/cef-109）" OFF)
-
-if(BUILD_CEF_SHELL)
-  if(NOT EXISTS "${CMAKE_SOURCE_DIR}/3rdparty/cef-109/cmake/FindCEF.cmake")
-    message(FATAL_ERROR
-      "找不到 CEF: ${CMAKE_SOURCE_DIR}/3rdparty/cef-109\n"
-      "把 CEF 109 的二进制约解压到 3rdparty/cef-109 后再开 BUILD_CEF_SHELL。")
-  endif()
-  set(CEF_ROOT "${CMAKE_SOURCE_DIR}/3rdparty/cef-109" CACHE PATH "CEF binary distribution")
-  list(APPEND CMAKE_MODULE_PATH "${CEF_ROOT}/cmake")
-  find_package(CEF REQUIRED)
-  # wrapper 从源码编译，保证和我们的 CRT/编译选项一致
-  add_subdirectory(${CEF_LIBCEF_DLL_WRAPPER_PATH} libcef_dll_wrapper EXCLUDE_FROM_ALL)
-  add_subdirectory(src/common/cef_shell)
-  add_subdirectory(src/apps/eph205_app)
 endif()

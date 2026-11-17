@@ -18,7 +18,7 @@
 #include "base/server.h"
 #include "common/cef_shell/cef_shell.h"
 #include "common/log/log.h"
-#include "eph205/eph205_module.h"
+#include "eph205_module/eph205_module.h"
 #include "include/cef_app.h"
 
 namespace {

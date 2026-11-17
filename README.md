@@ -16,7 +16,7 @@
 | 部分                | 位置                      | 职责                                                                                                          |
 | ------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------- |
 | **v1 通讯层**       | `src/framework/v1/base/`           | 通用的设备上位机框架：HTTP 接口、WebSocket 推送、会话、作业、订阅与流控。**不含任何设备代码**，换产品只换模块 |
-| **EPH205 业务模块** | `src/apps/eph205/` | 串口协议、命令、批量测量、结果判定、历史落库                                                                  |
+| **EPH205 业务模块** | `src/apps/eph_205/eph205_module/` | 串口协议、命令、批量测量、结果判定、历史落库                                                                  |
 
 "**模块**"是通讯层的扩展点：业务方实现一个接口（`v1::Module`，见
 `src/framework/v1/base/module.h`），把它注册进通讯层，就得到一套完整的 REST + 推送
@@ -29,7 +29,7 @@
 | `src/examples/mongoose_c/`       | 单文件纯 C，演示 mongoose 的事件循环、HTTP 路由、WebSocket、定时器。想看框架本身长什么样，读这一个文件           |
 | `src/examples/mongoose_cpp/`     | 双通道波形 demo，早期按协议改造过的参考实现                                                                      |
 | `src/examples/cpp_httplib/`      | 单文件 C++，cpp-httplib 的服务端与客户端写在同一个进程里：HTTP 路由、WS 回显、二进制收发。跑起来自己连自己       |
-| `src/apps/eph205_app/` | 桌面客户端外壳：开窗、加载一个网址、关掉浏览器的刷新/右键/新窗口。**不知道 EPH205 是什么**，换产品只改网址和图标 |
+| `src/apps/eph_205/eph205_app/` | 桌面客户端外壳：开窗、加载一个网址、关掉浏览器的刷新/右键/新窗口。**不知道 EPH205 是什么**，换产品只改网址和图标 |
 
 ---
 
@@ -40,11 +40,11 @@
 - 已知缺口（都记在文档里，不是遗忘）：
   - 通讯层不持有环形缓冲，所以"来不及发送而丢弃数据"无法上报为 `core.overrun` 事件；
     模块自己的 `readings_` 队列满 4096 条时是静默丢弃（`eph205_module.cpp`）。
-  - 自动化脚本 `tools/e2e/ui/edge_webdriver/eph205_e2e.py` 里还有几处按旧界面写的选择器
+  - 自动化脚本 `src/apps/eph_205/e2e/ui_edge.py` 里还有几处按旧界面写的选择器
     （用 `.tag` 类找"管理员/操作员"标识，新界面是 `.chip`），跑之前需要先更新。
   - Qt QWidget 前端只有方案没有实现，见 `docs/plan/03-web与Qt双前端策略.md`。
   - 页面尚未嵌进 exe，客户机仍需要 `www/` 目录。
-  - 安装包已有：`tools/build/installer.iss` 由 `package_client.bat` 调用 ISCC 生成
+  - 安装包已有：`src/apps/eph_205/packaging/installer.iss` 由 `package_client.bat` 调用 ISCC 生成
     `dist/EP-H205-<版本>-x64-setup.exe`。安装/启动/卸载流程用降低权限的测试包跑通过，
     正式包的 admin 提权安装还没实测；代码签名也没做（未签名时 Windows 会拦一次）。
 
@@ -93,17 +93,22 @@ build\ninja-x64-release\EPH205.exe
 src/framework/v1/             基础通讯框架（不含设备代码）
   base/                       HTTP/WS、会话、作业、订阅与流控
   main.cpp                    纯框架入口            -> v1_server.exe
-src/apps/eph205/              EPH205 产品
-  protocol.*                  设备协议编解码 AA 55 CMD LEN DATA SUM8
-  serial_port.*               Win32 串口读写与端口枚举
-  eph205_client.*             一问一答的帧事务（阻塞，只在工作线程调用）
-  simulator.*                 固件行为仿真 + 挂在另一个串口上的应答线程
-  measurement_store.*         SQLite 落库与 CSV 导出
-  eph205_module.*             v1::Module 实现：命令/参数/作业/流
-  main.cpp                    产品入口               -> eph205_server.exe
-  www/                        静态根，构建时复制到构建目录的 www/
-src/apps/eph205_app/          桌面客户端（组装：进程内服务端 + 外壳）
-                              -> EPH205.exe
+src/apps/                      一个目录一个产品
+  CMakeLists.txt              产品分发（新增产品在这里加一行）
+  eph_205/                    EPH205：模块 + 桌面壳 + e2e + 打包
+    eph205_module/
+      protocol.*              设备协议编解码 AA 55 CMD LEN DATA SUM8
+      serial_port.*           Win32 串口读写与端口枚举
+      eph205_client.*         一问一答的帧事务（阻塞，只在工作线程调用）
+      simulator.*             固件行为仿真 + 挂在另一个串口上的应答线程
+      measurement_store.*     SQLite 落库与 CSV 导出
+      eph205_module.*         v1::Module 实现：命令/参数/流
+      main.cpp                入口                   -> eph205_server.exe
+      www/                    静态根，构建时复制到构建目录的 www/
+    eph205_app/               桌面客户端（进程内服务端 + 外壳） -> EPH205.exe
+    e2e/                      本产品的端到端：suite.py 声明，其余是脚本
+    packaging/                installer.iss、package_client.bat
+  eph_666/                    第二个产品的骨架（验证框架可复用）
 src/common/cef_shell/         CEF 窗口外壳静态库（业务无关）
 src/common/log/               日志门面：4 个宏 + Init/Shutdown，spdlog 的 logger 只在 .cpp 里
 src/examples/mongoose_c/      mongoose 纯 C 教学 demo  -> mongoose_c_demo.exe
@@ -111,8 +116,8 @@ src/examples/mongoose_cpp/    mongoose 双通道波形 demo -> mongoose_cpp_demo
 src/examples/cpp_httplib/     httplib 教学 demo       -> cpp_httplib_demo.exe
 src/tests/                    单元测试（framework/ common/ modules/）
 docs/                         文档，索引见 docs/README.md
-tools/build/                  构建与打包脚本（build_client、package_client、installer.iss）
-tools/e2e/                    端到端测试：api/（纯协议） ui/（浏览器与客户端）
+tools/build/                  通用构建脚本（build_client、build_debug）
+tools/e2e/                    端到端调度：run_all.py 扫各产品的 e2e/suite.py
 tools/dev/                    手动调试用的小工具（CDP 操作台）
 3rdparty/                     mongoose / sqlite / spdlog / googletest 等（源码入库）
 ```
@@ -170,28 +175,28 @@ debug/info/warn/error 四档，运行时用 `app_log::SetLevel` 调。初始化�
 4. **串口是独占且慢的。** 所有串口事务都在一个工作线程里串行执行；HTTP
    线程只把任务投进去并等结果（`RunSync`），不直接碰串口。
 5. **批量测量跑成"作业"。** 作业有 id、进度、取消；进度经事件
-   `eph205.job.progress` 推给浏览器。测完写成一条记录进 SQLite，返回记录号。
+   `biz.job.progress` 推给浏览器。测完写成一条记录进 SQLite，返回记录号。
 
 设备协议本身（帧格式、命令码、状态码）见 `docs/spec/02-ws-protocol-v1.md`
-与 `src/apps/eph205/protocol.h`。
+与 `src/apps/eph_205/eph205_module/protocol.h`。
 
 ---
 
 ## 7. 常用命令
 
-构建与打包（脚本都在 `tools/build/`）：
+构建与打包（通用脚本在 `tools/build/`，产品打包在产品的 `packaging/`）：
 
 ```bat
-build.bat                              :: x64 + release，全部目标（不含客户端）
-build.bat x64 release client           :: 连桌面客户端一起（需要 CEF）
-build.bat x64 debug                    :: 调试版
-tools\build\build_client.bat           :: 上面那条的别名，留着手熟
-tools\build\build_debug.bat            :: x64 debug 的别名
-tools\build\package_client.bat         :: 打包：dist\EPH205 + zip
-                                       :: 装了 Inno Setup 6 时再出安装包
+build.bat                                     :: x64 + release，全部目标（不含客户端）
+build.bat x64 release client                  :: 连桌面客户端一起（需要 CEF）
+build.bat x64 debug                           :: 调试版
+tools\build\build_client.bat                  :: 上面那条的别名，留着手熟
+tools\build\build_debug.bat                   :: x64 debug 的别名
+src\apps\eph_205\packaging\package_client.bat :: 打包：dist\EPH205 + zip
+                                              :: 装了 Inno Setup 6 时再出安装包
 ```
 
-安装包由 `tools/build/installer.iss` 描述（Inno Setup 6）。`package_client.bat` 按顺序找
+安装包由 `src/apps/eph_205/packaging/installer.iss` 描述（Inno Setup 6）。`package_client.bat` 按顺序找
 `ISCC.exe`：仓库内 `3rdparty/inno-setup-6/` → 系统安装的 `Inno Setup 6`；都找不到就跳过，
 只留免安装版目录与 zip。
 
@@ -200,24 +205,25 @@ tools\build\package_client.bat         :: 打包：dist\EPH205 + zip
 
 卸载不会删 `data/`：里面是测量记录（SQLite），属于业务数据，留给用户自己处理。
 
-端到端测试（`tools/e2e/`）。`api/` 只走 HTTP 与 WebSocket，`ui/` 需要浏览器或
-客户端进程与对应驱动：
+端到端测试按产品放：`src/apps/<产品>/e2e/`。`tools/e2e/run_all.py` 只负责发现
+`suite.py` 并调度，不认识任何具体产品：
 
 ```bat
-python -I tools\e2e\api\eph205_api_test.py            :: 纯接口：连接→单点→作业→历史→CSV
-python -I tools\e2e\api\eph205_auth_test.py           :: 登录与角色拦截
-python -I tools\e2e\api\eph205_fc_test.py             :: 流控回归：window=0 不推、额度耗尽暂停、归还恢复
-python -I tools\e2e\ui\edge_webdriver\eph205_e2e.py  :: 真实 UI 全流程（EdgeDriver 9515）
-python -I tools\e2e\ui\cef_test\eph205_client_check.py :: 桌面客户端（ChromeDriver 9516 + --devtools）
+python -I tools\e2e\run_all.py                :: 全部产品的全部段
+python -I tools\e2e\run_all.py --only api,ui  :: 只跑指定段
+python -I tools\e2e\run_all.py --delay 3      :: UI 步骤之间停 3 秒，便于肉眼观察
 ```
+
+单跑某个脚本也行（都在 `src/apps/eph_205/e2e/`）：`api_test.py` 纯接口、
+`auth_test.py` 角色、`fc_test.py` 流控、`ui_edge.py` 网页 UI、`ui_cef.py` 桌面客户端。
 
 ---
 
 ## 8. 改动前必读（都是实际踩过的坑）
 
-1. **静态页归各自的程序，没有仓库级 `www/`。** 产品页面在 `src/apps/eph205/www`，
+1. **静态页归各自的程序，没有仓库级 `www/`。** 产品页面在 `src/apps/eph_205/eph205_module/www`，
    由服务端提供；demo 的页面在自己目录下。加页面时放到对应 app 里。
-2. **前端改样式只在 `src/apps/eph205/www/eph205/assets/` 里加变量。** 组件里写死十六进制
+2. **前端改样式只在 `src/apps/eph_205/eph205_module/www/eph205/assets/` 里加变量。** 组件里写死十六进制
    颜色会让深色主题失效；CEF 109（Chrome 109）不支持 `color-mix()`，交互态用
    预置的 rgba 变量。
 3. **页面切换靠 `.page:not(.active)`。** 页根节点挂着布局类 `.stack`，权重相同、
@@ -231,7 +237,7 @@ python -I tools\e2e\ui\cef_test\eph205_client_check.py :: 桌面客户端（Chro
    下会乱码，严重时影响解析。`.ps1` 可以写中文，保持 UTF-8。
 8. **换行符由 `.gitattributes` 管**：除 `.bat` 是 CRLF，其余统一 LF。
 9. **`*.obj` 在 `.gitignore` 里被当成编译产物忽略**，Wavefront 模型靠
-   `!/src/apps/eph205/www/eph205/**/*.obj` 这条例外保留。移动模型目录时记得同步改。
+   `!/src/apps/eph_205/eph205_module/www/eph205/**/*.obj` 这条例外保留。移动模型目录时记得同步改。
 10. **CEF 客户端跑久了 ChromeDriver 截图会整个卡死**（JS 仍能执行，重启进程恢复）。
     自动化脚本要为此留退路，这不是界面 bug。
 11. **日志只在 `.cpp` 里包含 `common/log/log.h`。** 头文件借了 spdlog 捆绑的 fmt

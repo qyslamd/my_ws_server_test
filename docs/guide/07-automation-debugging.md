@@ -11,7 +11,7 @@ status: draft
 
 # 自动化调试指南
 
-> 适用于本仓库的 `v1_server` 与 `src/apps/eph205/www` 通用状态页。
+> 适用于本仓库的 `v1_server` 与 `src/apps/eph_205/eph205_module/www` 通用状态页。
 > 覆盖：WebDriver、有头 Edge + DevTools、CDP JS 断点、LLDB、CDB。
 > 以下命令均在本机实际走通。
 
@@ -306,7 +306,7 @@ CDB 直接读 MSVC PDB 私有符号，方法名解析完整；LLDB 的 Windows P
 
 ```text
 tools/build/build_debug.bat
-tools/e2e/ui/edge_webdriver/
+tools/dev/
   README.md
   edge_auto.py
   edge_headed.py

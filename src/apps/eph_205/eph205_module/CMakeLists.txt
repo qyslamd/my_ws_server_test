@@ -26,7 +26,7 @@ add_library(eph205_module STATIC
 
 # 调用方以 "eph205/eph205_module.h" 引用
 target_include_directories(eph205_module PUBLIC
-  ${CMAKE_SOURCE_DIR}/src/apps
+  ${CMAKE_CURRENT_SOURCE_DIR}/../
 )
 
 target_link_libraries(eph205_module PUBLIC v1_base sqlite3)
@@ -62,5 +62,6 @@ add_custom_command(
   COMMENT "复制页面到 $<TARGET_FILE_DIR:eph205_server>/www"
   VERBATIM)
 
-add_custom_target(copy_www ALL
+# 目标名必须带产品前缀：多产品并存时 copy_www 会撞名
+add_custom_target(eph205_copy_www ALL
   DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/www.stamp")

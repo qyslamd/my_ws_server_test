@@ -1,6 +1,6 @@
 """三维视图冒烟：打开帮助页 → 三维视图，确认模型加载与画布渲染。
 
-用法：python -I tools/e2e/ui/edge_webdriver/eph205_3d_check.py
+用法：python -I src/apps/eph_205/e2e/ui_3d.py
 没有服务端时会自己拉起，退出时结束。
 """
 
@@ -18,7 +18,8 @@ DRIVER = "http://127.0.0.1:9515"
 APP = "http://127.0.0.1:8790/eph205/"
 HEALTH = "http://127.0.0.1:8790/api/v1/health"
 EDGE = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
-ROOT = r"D:\trae_workspace\cef109_ws_base_env"
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__),
+                                    "..", "..", "..", ".."))
 BUILD_DIR = os.path.join("build", "ninja-x64-release")
 SHOT = os.path.join(ROOT, "temp", "eph205_3d.png")
 

@@ -30,7 +30,8 @@ CEF_EXE = os.path.join(CEF_ROOT, "build-cef-109", "tests", "cefclient", "Release
 CEF_DIR = os.path.dirname(CEF_EXE)
 CHROMEDRIVER = os.path.join(CEF_ROOT, "chromedriver_win32", "chromedriver.exe")
 
-ROOT = r"D:\trae_workspace\cef109_ws_base_env"
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__),
+                                    "..", "..", "..", ".."))
 SERVER = os.path.join(ROOT, "build", "eph205_server.exe")
 PORT = 8791
 DEBUG_PORT = 9223

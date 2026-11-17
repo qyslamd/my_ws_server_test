@@ -19,7 +19,7 @@ status: draft
 
 ## 1. 前因后果
 
-205 的界面已经做成了纯 web（`src/apps/eph205/www/eph205/`），在 Edge 里跑得没问题，
+205 的界面已经做成了纯 web（`src/apps/eph_205/eph205_module/www/eph205/`），在 Edge 里跑得没问题，
 在本地编译的 CEF 109 里也完整验证过：登录、连接、测量、实时读数、历史对比、
 三维视图全部正常，WebGL 走硬件 ANGLE/D3D11，页面无 JS 错误。
 
@@ -152,11 +152,11 @@ if(BUILD_CEF_SHELL)
   set(CEF_ROOT "${CMAKE_SOURCE_DIR}/3rdparty/cef-109" CACHE PATH "CEF binary distribution")
   list(APPEND CMAKE_MODULE_PATH "${CEF_ROOT}/cmake")
   find_package(CEF REQUIRED)
-  add_subdirectory(src/apps/eph205_app)
+  add_subdirectory(src/apps/eph_205/eph205_app)
 endif()
 ```
 
-`src/apps/eph205_app/CMakeLists.txt`（目标名与产物名分开：壳可复用，
+`src/apps/eph_205/eph205_app/CMakeLists.txt`（目标名与产物名分开：壳可复用，
 产物归产品）：
 
 ```cmake
@@ -191,7 +191,7 @@ add_custom_command(TARGET EPH205 POST_BUILD
 | A. 每次编译 `libcef_dll/` 源码               | ABI 与我们的 CRT 完全一致，升级 CEF 只换目录 | 首次编译多 1~2 分钟                      |
 | B. 复用你已经编好的 `libcef_dll_wrapper.lib` | 快                                           | CRT/编译选项必须完全一致，换机器容易踩坑 |
 
-**建议 A**：在 `src/apps/eph205_app/CMakeLists.txt` 里把 `${CEF_ROOT}/libcef_dll` 下的
+**建议 A**：在 `src/apps/eph_205/eph205_app/CMakeLists.txt` 里把 `${CEF_ROOT}/libcef_dll` 下的
 `.cc` 收进一个静态库目标。源码在 3rdparty（不入库），编译规则在我们仓库里（入库）。
 
 ### 4.3 一个必须记住的点：子进程
@@ -442,7 +442,7 @@ P0~P2 是核心，估计 2~3 天；P3~P4 再加 1~2 天。
 ## 13. 风险与注意
 
 1. **CEF 升级成本**：升级要重新编译 wrapper、重跑一遍页面验证（我们已有
-   `tools/e2e/ui/cef_test/eph205_cef_check.py` 可以复用）。固定 109 是好事，但要有
+   `src/apps/eph_205/e2e/cef_standalone.py` 可以复用）。固定 109 是好事，但要有
    升级预案（Chromium 每 4 周一个版本，安全补丁会积压）。
 2. **杀毒误报**：未签名的 exe + 186 MB 的 libcef.dll，容易被拦。建议代码签名。
 3. **首次启动**：会创建缓存目录，第一次可能慢 1~2 秒；用启动画面或先建窗口再加载。
@@ -475,7 +475,7 @@ P0~P2 是核心，估计 2~3 天；P3~P4 再加 1~2 天。
 ## 15. 附：本轮已经验证过的事实
 
 - CEF 109 里页面的完整功能可用（登录/测量/实时读数/三维/历史），
-  脚本 `tools/e2e/ui/cef_test/eph205_cef_check.py`，结论见
+  脚本 `src/apps/eph_205/e2e/cef_standalone.py`，结论见
   `docs/guide/06-在CEF中使用当前的205web.md`。
 - ChromeDriver 109 用 `debuggerAddress` 附加 cefclient 稳定；
   Selenium 4.52 自带的服务管理会卡住（所以脚本用标准库 HTTP）。
@@ -490,15 +490,15 @@ P0~P2 是核心，估计 2~3 天；P3~P4 再加 1~2 天。
 
 | 阶段 | 内容                                                                                                                  | 产物                       |
 | ---- | --------------------------------------------------------------------------------------------------------------------- | -------------------------- |
-| P0   | CEF 放 `3rdparty/cef-109`（gitignore）+ `find_package(CEF)` + 最小窗口                                                | `src/apps/eph205_app/`   |
+| P0   | CEF 放 `3rdparty/cef-109`（gitignore）+ `find_package(CEF)` + 最小窗口                                                | `src/apps/eph_205/eph205_app/`   |
 | P1   | handler 清单：右键菜单清空、F5/Ctrl+R/Ctrl+P/Ctrl+S/Ctrl+U/缩放全拦、弹窗拦截、拖放拦截、权限拒绝、外链交给系统浏览器 | `client.cpp`               |
 | P2   | 服务端线程化（`V1Server::Start/Stop`）+ 端口冲突自动顺延（8791..8810）+ 单实例 + CEF 日志                             | `main.cpp`                 |
 | P3   | `--devtools` 开关（仅调试版开 9223）、导出落到 `exports\`                                                             | —                          |
-| P4   | 打包脚本：目录 + zip                                                                                                  | `tools/build/package_client.bat` |
+| P4   | 打包脚本：目录 + zip                                                                                                  | `src/apps/eph_205/packaging/package_client.bat` |
 
 ### 验证
 
-`tools/e2e/ui/cef_test/eph205_client_check.py`（附加到 `EPH205.exe --devtools`）：
+`src/apps/eph_205/e2e/ui_cef.py`（附加到 `EPH205.exe --devtools`）：
 
 ```text
 F5:     页面没有刷新
@@ -626,5 +626,5 @@ WM_DESTROY → OnBeforeClose`。以后要加多窗口，只需把 `gBrowserCount
 
 `PrintWindow` 抓不到 CEF 的 GPU 合成内容（只能拍到白底 + 标题栏）。
 截图时用 `EPH205.exe --devtools --disable-gpu` 启动，走软件合成，
-`tools/e2e/ui/capture_window.ps1` 就能把窗口连同标题栏一起拍下来。
+`tools/e2e/capture_window.ps1` 就能把窗口连同标题栏一起拍下来。
 这是拍照手段，不影响正常使用时的硬件渲染。

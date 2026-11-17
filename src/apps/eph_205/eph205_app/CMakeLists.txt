@@ -54,7 +54,7 @@ add_custom_command(TARGET eph205_app POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_directory
           "${CEF_RESOURCE_DIR}" "$<TARGET_FILE_DIR:eph205_app>"
   COMMAND ${CMAKE_COMMAND} -E copy_directory
-          "${CMAKE_SOURCE_DIR}/src/apps/eph205/www"
+          "${CMAKE_SOURCE_DIR}/src/apps/eph_205/eph205_module/www"
           "$<TARGET_FILE_DIR:eph205_app>/www"
   COMMENT "复制 CEF 运行时与页面到输出目录"
   VERBATIM)

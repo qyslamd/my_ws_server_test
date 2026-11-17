@@ -296,7 +296,7 @@ void Mongoose_Server::on_http_msg(struct mg_connection* c,
   }
   struct mg_http_serve_opts opts = {};
   // 页面是本 demo 自己的(源目录 src/examples/mongoose_cpp/www,
-  // 构建时复制到构建目录根的 www-demo)。生产前端在 src/apps/eph205/www。
+  // 构建时复制到构建目录根的 www-demo)。生产前端在 src/apps/eph_205/eph205_module/www。
   opts.root_dir = "www-demo";
   mg_http_serve_dir(c, hm, &opts);
 }

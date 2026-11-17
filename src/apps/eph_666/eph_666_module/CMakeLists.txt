@@ -1,0 +1,1 @@
+message("eph_666_module " ${CMAKE_CURRENT_BINARY_DIR})

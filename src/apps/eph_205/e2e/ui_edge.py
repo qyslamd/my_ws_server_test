@@ -9,7 +9,7 @@
   3rdparty\\edgedriver_win64\\msedgedriver.exe --port=9515  已运行
 
 用法：
-  python -I tools/e2e/ui/edge_webdriver/eph205_e2e.py
+  python -I src/apps/eph_205/e2e/ui_edge.py
 """
 
 import base64
@@ -32,7 +32,8 @@ EDGE = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
 # 独立且每次清空的配置目录：默认配置会缓存上一次的页面模块，
 # 改了 js 却还是跑旧代码，排查起来极难
 PROFILE = os.path.join(tempfile.gettempdir(), "eph205-e2e-profile")
-ROOT = r"D:\trae_workspace\cef109_ws_base_env"
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__),
+                                    "..", "..", "..", ".."))
 BUILD_DIR = os.path.join("build", "ninja-x64-release")
 CSV_PATH = os.path.join(ROOT, "temp", "eph205_items.csv")
 XLSX_PATH = os.path.join(ROOT, "temp", "eph205_items.xlsx")

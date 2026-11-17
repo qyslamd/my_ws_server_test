@@ -48,17 +48,18 @@ todo.md                        项目待办与设计储备
 
 ```text
 src/framework/v1/      基础通讯框架（不含设备代码）
-src/apps/eph205/       产品：模块、页面 www/、入口
-src/apps/eph205_app/   桌面客户端（组装进程内服务端 + 外壳）
+src/apps/              一个目录一个产品
+  eph_205/             EPH205：module/ + app/ + e2e/ + packaging/
+  eph_666/             第二个产品的骨架
 src/common/cef_shell/  CEF 窗口外壳静态库（业务无关）
 src/common/log/        日志门面
 src/examples/          mongoose_c、mongoose_cpp、cpp_httplib 三个 demo
 src/tests/             单元测试
 docs/                  本文档（spec/guide/plan/lesson，待办在 todo.md）
-tools/                 构建、打包、自动化脚本
+tools/                 通用构建、调试小工具、端到端调度（run_all.py）
 3rdparty/              mongoose、sqlite、spdlog、googletest 等（cef 不入库）
 ```
 
-静态页不属于"仓库级资源"，而属于提供它的那个程序：`src/apps/eph205/www` 由
+静态页不属于"仓库级资源"，而属于提供它的那个程序：`src/apps/eph_205/eph205_module/www` 由
 通讯层提供（构建时复制到构建目录的 `www/`），CEF 外壳直接复制它，
 `src/examples/mongoose_cpp/www` 只服务那个 demo，复制到构建目录的 `www-demo/`。

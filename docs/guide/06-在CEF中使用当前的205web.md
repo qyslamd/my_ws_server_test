@@ -31,7 +31,7 @@ status: draft
 实测流程：登录 → 启动仿真 → 连接 COM7 → 导入 CSV（7 项）→ 测量
 （7/7，5 通过 1 失败，71.4%）→ 历史 → 三维（12 个部件，canvas 1361×460）。
 
-脚本：`tools/e2e/ui/cef_test/eph205_cef_check.py`
+脚本：`src/apps/eph_205/e2e/cef_standalone.py`
 
 ```bat
 python -I tools\e2e\ui\cef_test\eph205_cef_check.py

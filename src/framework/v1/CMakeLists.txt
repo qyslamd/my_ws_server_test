@@ -1,12 +1,12 @@
 # ============================================================
 # 基础通讯框架（纯 C/C++，零 Qt）
 #
-# base/     HTTP/WS、会话、帧、订阅、作业路由、Blob、配置、认证
+# base/     HTTP/WS、会话、帧、订阅、流控、配置
 # main.cpp  只含框架的入口，不含任何设备代码
 #
 #   v1_base    静态库
 #   v1_server  纯框架实例
-# 业务实例（apps/eph205）注册自己的模块后自带 main。
+# 业务实例（apps/eph_205）注册自己的模块后自带 main。
 # ============================================================
 set(MONGOOSE_DIR "${CMAKE_SOURCE_DIR}/3rdparty/mongoose-7.23")
 set(JSON_DIR "${CMAKE_SOURCE_DIR}/3rdparty")

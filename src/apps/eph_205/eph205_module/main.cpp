@@ -2,7 +2,7 @@
 #include <string>
 
 #include "base/server.h"
-#include "eph205/eph205_module.h"
+#include "eph205_module/eph205_module.h"
 
 // EPH205 业务实例：通讯层 + 一个业务模块。
 // 通讯层自身不包含任何设备代码，main.cpp 仍是纯通讯层入口。

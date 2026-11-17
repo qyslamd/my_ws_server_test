@@ -23,7 +23,8 @@ sys.stdout.reconfigure(encoding="utf-8")
 DRIVER = "http://127.0.0.1:9516"
 DEBUG_PORT = 9223
 CHROMEDRIVER = r"D:\trae_workspace\qt5-cef5414.120-base-env\chromedriver_win32\chromedriver.exe"
-ROOT = r"D:\trae_workspace\cef109_ws_base_env"
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__),
+                                    "..", "..", "..", ".."))
 OUT = os.path.join(ROOT, "temp", "client")
 CSV_PATH = os.path.join(ROOT, "temp", "eph205_items.csv")
 EXPORTS = os.path.join(ROOT, "build", "ninja-x64-release", "exports")
