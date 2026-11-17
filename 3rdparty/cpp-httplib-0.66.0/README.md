@@ -10,13 +10,14 @@
 否则"两边都用同一套代码"测不出协议问题。cpp-httplib 自带 HTTP 与
 WebSocket 客户端，正好干这件事。
 
-它**不参与产品构建**：不要把它链进 `v1_base`、apps 或 examples，
-只有在 `src/tests/integration/` 里的测试目标可以引用。
+它**不参与产品构建**：不要把它链进 `v1_base` 或 apps。
+目前只有两类目标引用它：`src/tests/integration/` 的集成测试，
+以及 `src/examples/cpp_httplib/` 的教学 demo。
 
 ## 用之前要知道
 
 - 它是异常风格（`Result`、`std::exception`），与仓库"失败走
-  `bool + std::string& err`"的约定相反。所以只让测试目标开 `/EHsc`，
+  `bool + std::string& err`"的约定相反。所以只让测试与 demo 目标开 `/EHsc`，
   别把它 include 进任何产品头文件。
 - 单头 862 KB，编译一次要几秒。一个测试可执行文件只 include 一次；
   要是有多个测试文件需要它，先抽一层薄封装，不要每个文件都 include。

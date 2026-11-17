@@ -99,9 +99,11 @@ add_subdirectory(src/apps/eph205)
 # 子目标：示例
 #   mongoose_cpp  双通道 WS 波形（按协议改造过的参考实现）
 #   mongoose_c    纯 C 教学（单文件，零业务）
+#   cpp_httplib   C++ 教学：httplib 的服务端与客户端写在同一个进程里
 # ============================================================
 add_subdirectory(src/examples/mongoose_cpp)
 add_subdirectory(src/examples/mongoose_c)
+add_subdirectory(src/examples/cpp_httplib)
 
 # ============================================================
 # 单元测试:googletest(vendored) + ctest

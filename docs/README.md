@@ -52,7 +52,7 @@ src/apps/eph205/       产品：模块、页面 www/、入口
 src/apps/eph205_app/   桌面客户端（组装进程内服务端 + 外壳）
 src/common/cef_shell/  CEF 窗口外壳静态库（业务无关）
 src/common/log/        日志门面
-src/examples/          mongoose_c、mongoose_cpp 两个 demo
+src/examples/          mongoose_c、mongoose_cpp、cpp_httplib 三个 demo
 src/tests/             单元测试
 docs/                  本文档（spec/guide/plan/lesson，待办在 todo.md）
 tools/                 构建、打包、自动化脚本

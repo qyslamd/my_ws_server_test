@@ -28,6 +28,7 @@
 | ------------------------ | ---------------------------------------------------------------------------------------------------------------- |
 | `src/examples/mongoose_c/`       | 单文件纯 C，演示 mongoose 的事件循环、HTTP 路由、WebSocket、定时器。想看框架本身长什么样，读这一个文件           |
 | `src/examples/mongoose_cpp/`     | 双通道波形 demo，早期按协议改造过的参考实现                                                                      |
+| `src/examples/cpp_httplib/`      | 单文件 C++，cpp-httplib 的服务端与客户端写在同一个进程里：HTTP 路由、WS 回显、二进制收发。跑起来自己连自己       |
 | `src/apps/eph205_app/` | 桌面客户端外壳：开窗、加载一个网址、关掉浏览器的刷新/右键/新窗口。**不知道 EPH205 是什么**，换产品只改网址和图标 |
 
 ---
@@ -107,6 +108,7 @@ src/common/cef_shell/         CEF 窗口外壳静态库（业务无关）
 src/common/log/               日志门面：4 个宏 + Init/Shutdown，spdlog 的 logger 只在 .cpp 里
 src/examples/mongoose_c/      mongoose 纯 C 教学 demo  -> mongoose_c_demo.exe
 src/examples/mongoose_cpp/    mongoose 双通道波形 demo -> mongoose_cpp_demo.exe
+src/examples/cpp_httplib/     httplib 教学 demo       -> cpp_httplib_demo.exe
 src/tests/                    单元测试（framework/ common/ modules/）
 docs/                         文档，索引见 docs/README.md
 tools/build/                  构建与打包脚本（build_client、package_client、installer.iss）
@@ -129,6 +131,7 @@ tools/dev/                    手动调试用的小工具（CDP 操作台）
 | `EPH205.exe`（客户端）    | 8791 起，占用则顺延 20 个 | 进程内起同一个服务端；可用 `--port=8791` 改起点 |
 | `mongoose_cpp_demo.exe`   | 8765                      | demo                                            |
 | `mongoose_c_demo.exe`     | 8766                      | demo                                            |
+| `cpp_httplib_demo.exe`    | 8767                      | demo（可选参数换端口）                          |
 | 客户端 `--devtools`       | 9223                      | Chrome 调试端口，仅调试用                       |
 | EdgeDriver / ChromeDriver | 9515 / 9516               | 自动化脚本用                                    |
 
