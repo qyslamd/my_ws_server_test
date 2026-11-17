@@ -41,6 +41,7 @@ Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==
 Sec-WebSocket-Version: 13
 ```
 `Sec-WebSocket-Key` 是一个随机值，用于防止缓存代理错误地复用连接。
+
 2. **服务器同意升级**，返回状态码 `101 Switching Protocols`：
 ```http
 HTTP/1.1 101 Switching Protocols
