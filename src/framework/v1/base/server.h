@@ -17,7 +17,7 @@ struct mg_mgr;
 
 namespace v1 {
 
-// 业务无关的通讯层：HTTP/WS、会话、订阅、帧、作业路由、Blob、配置、认证。
+// 业务无关的通讯层：HTTP/WS、会话、订阅、帧、路由、配置。
 // 具体设备/协议通过 Module / MediaSource 注册进来。
 class V1Server {
  public:
@@ -60,10 +60,6 @@ class V1Server {
     // 用 shared_ptr：会话结束时把 active_buffers_ 置空（detached），
     // 已经在飞的 Push 还能安全用完，之后再来的直接拿到空指针
     std::shared_ptr<StreamBuffers> buffers;
-  };
-  struct Blob {
-    std::string content_type;
-    std::vector<uint8_t> data;
   };
 
   // 推给"当前会话"的写入口，业务模块拿到的是它的地址
@@ -142,13 +138,11 @@ class V1Server {
                  const nlohmann::json& payload);
   // 开始一次异步收尾：断生产、尽力发 ending、停模块，到点销毁。
   // 幂等，重复调用只算第一次
-  void SafeStop(const std::string& reason, const std::string& sid = "");
+  void SafeStop(const std::string& reason, const std::string& sid = "",
+                const std::string& skip_ns = "");
   void Log(const std::string& msg);
-  std::string AddBlob(const std::string& content_type,
-                      const std::vector<uint8_t>& data);
   void LoadConfig();
   void SaveConfig();
-  void LoadBlobs();
 
   int port_;
   bool auth_required_ = false;
@@ -176,8 +170,6 @@ class V1Server {
   // 交给业务模块的推送口；模块只拿到它的基类指针
   Sink sink_{this};
   std::map<std::string, int> revisions_;
-  std::map<std::string, Blob> blobs_;
-  int blob_counter_ = 0;
   int token_counter_ = 0;
   std::map<std::string, nlohmann::json> config_;
   std::map<std::string, int> config_rev_;

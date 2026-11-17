@@ -4,6 +4,7 @@
 // "服务端 + mongoose + 网络" 这条链路本身通不通。
 // 协议细节（帧、配额、溢出）不在这个文件的范围内。
 
+#include <atomic>
 #include <chrono>
 #include <gtest/gtest.h>
 #include <memory>
@@ -82,13 +83,25 @@ class FakeModule : public v1::Module {
     return true;
   }
   bool Stop(std::string&) override {
+    // 第一次停故意卡住：验证 stop 超时与升级路径。
+    // 第二次（升级时的重复调用）立刻返回，测试不用等两轮
+    if (stop_delay_ms_ > 0 && !slept_.exchange(true)) {
+      std::this_thread::sleep_for(
+          std::chrono::milliseconds(stop_delay_ms_));
+    }
     running_ = false;
     return true;
   }
-  nlohmann::json State() const override { return {{"running", running_}}; }
+
+  // 让 Stop 阻塞多少毫秒；0 表示立刻返回
+  void set_stop_delay_ms(int ms) { stop_delay_ms_ = ms; }
+  nlohmann::json State() const override {
+    return {{"running", running_.load()}};
+  }
   nlohmann::json Describe() const override {
-    return {
-        {"ns", "fake"}, {"running", running_}, {"streams", streams_.size()}};
+    return {{"ns", "fake"},
+            {"running", running_.load()},
+            {"streams", streams_.size()}};
   }
   bool Command(const std::string&, const nlohmann::json&, nlohmann::json&,
                std::string&) override {
@@ -109,7 +122,9 @@ class FakeModule : public v1::Module {
  private:
   std::vector<v1::StreamInfo> streams_;
   v1::StreamSink* sink_ = nullptr;
-  bool running_ = false;
+  std::atomic<bool> running_{false};
+  std::atomic<bool> slept_{false};
+  int stop_delay_ms_ = 0;
 };
 
 }  // namespace
@@ -271,6 +286,43 @@ TEST_F(ServerSmokeTest, CreditForUnknownOrStateStreamIsSilent) {
     EXPECT_EQ(msg.find("core.error"), std::string::npos) << msg;
   }
   FAIL() << "unexpected event stream";
+}
+
+// Stop 卡过 stop_timeout_ms：先回 409 + 2007，再按会话级收尾销毁，
+// 收尾完成后必须能重新连接（规范 §5.4）
+TEST_F(ServerSmokeTest, StopTimeoutEscalates) {
+  httplib::ws::WebSocketClient ws(WsUrl("smoke-1"));
+  ASSERT_TRUE(ws.connect());
+
+  httplib::Client cli("127.0.0.1", running_.port);
+  cli.set_default_headers({{"X-Session-Id", "smoke-1"}});
+  auto start = cli.Post("/api/v1/modules/fake/start", "", "application/json");
+  ASSERT_TRUE(start);
+  ASSERT_EQ(start->status, 200);
+
+  // Stop 卡 6 秒，跨过 5 秒预算
+  fake_.set_stop_delay_ms(6000);
+  const auto stop = cli.Post("/api/v1/modules/fake/stop", "",
+                             "application/json");
+  ASSERT_TRUE(stop);
+  EXPECT_EQ(stop->status, 409);
+  EXPECT_NE(stop->body.find("\"code\":2007"), std::string::npos) << stop->body;
+
+  // 会话被销毁之后，新连接要能进来
+  bool back = false;
+  for (int i = 0; i < 100 && !back; ++i) {
+    httplib::ws::WebSocketClient again(WsUrl("smoke-2"));
+    back = static_cast<bool>(again.connect());
+    if (!back) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+  }
+  EXPECT_TRUE(back) << "收尾之后仍然连不上";
+
+  // 等那个卡住的 Stop 线程醒来再结束，否则模块对象会被提前析构
+  for (int i = 0; i < 40 && fake_.running(); ++i) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  }
 }
 
 // Stop 交给工作线程，响应晚一个 tick 回来；停完再停要被挡住

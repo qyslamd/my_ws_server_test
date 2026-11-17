@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
-#include <filesystem>
 #include <fstream>
 #include <nlohmann/json.hpp>
 #include <string>
@@ -147,7 +146,6 @@ V1Server::V1Server(int port, bool auth_required)
   mg_mgr_init(mgr_);
   started_ms_ = mg_millis();
   LoadConfig();
-  LoadBlobs();
 }
 
 V1Server::~V1Server() {
@@ -398,6 +396,8 @@ void V1Server::OnHttp(mg_connection* c, mg_http_message* hm) {
                    {"send_queue_bytes", kSendQueueBytes},
                    {"send_queue_drain_ms", kSendQueueDrainMs},
                    {"stop_timeout_ms", kStopTimeoutMs},
+                   {"state_frames_per_cycle", kMaxStateFramesPerTick},
+                   {"state_bytes_per_cycle", kMaxStateBytesPerTick},
                    {"ring_total_bytes", kRingTotalBytes}}}});
       return;
     }
@@ -485,49 +485,6 @@ void V1Server::OnHttp(mg_connection* c, mg_http_message* hm) {
                    {"values", config_[scope]}});
         return;
       }
-    }
-
-    if (r == "blobs" && parts.size() == 3 && method == "POST") {
-      if (hm->body.len > 8 * 1024 * 1024) {
-        ReplyError(c, 413, 2008, "blob too large");
-        return;
-      }
-      std::vector<uint8_t> data(hm->body.buf, hm->body.buf + hm->body.len);
-      std::string ct = Header(hm, "Content-Type");
-      if (ct.empty()) {
-        ct = "application/octet-stream";
-      }
-      const std::string id = AddBlob(ct, data);
-      ReplyJson(c, 201,
-                {{"blobId", id}, {"size", data.size()}, {"contentType", ct}});
-      return;
-    }
-    if (r == "blobs" && parts.size() == 3 && method == "GET") {
-      json list = json::array();
-      for (const auto& kv : blobs_) {
-        list.push_back({{"blobId", kv.first},
-                        {"size", kv.second.data.size()},
-                        {"contentType", kv.second.content_type}});
-      }
-      ReplyJson(c, 200, {{"blobs", list}});
-      return;
-    }
-    if (r == "blobs" && parts.size() == 4 && method == "GET") {
-      auto it = blobs_.find(parts[3]);
-      if (it == blobs_.end()) {
-        ReplyError(c, 404, 2002, "blob not found");
-        return;
-      }
-      ReplyBinary(c, it->second.content_type, it->second.data);
-      return;
-    }
-    if (r == "blobs" && parts.size() == 4 && method == "DELETE") {
-      if (blobs_.erase(parts[3]) == 0) {
-        ReplyError(c, 404, 2002, "blob not found");
-        return;
-      }
-      mg_http_reply(c, 204, kCorsHeaders, "");
-      return;
     }
 
     if (r == "state" && method == "GET") {
@@ -929,7 +886,8 @@ std::shared_ptr<V1Server::StopBatch> V1Server::StartStopBatch(
   return batch;
 }
 
-void V1Server::SafeStop(const std::string& reason, const std::string& sid) {
+void V1Server::SafeStop(const std::string& reason, const std::string& sid,
+                        const std::string& skip_ns) {
   if (ending_) {
     return;  // 已经在收尾，重复触发只算第一次
   }
@@ -957,8 +915,13 @@ void V1Server::SafeStop(const std::string& reason, const std::string& sid) {
   pending_stops_.clear();
 
   // 4. 所有在跑的模块并行停，一份预算
+  // skip_ns 是已经卡在 Stop 里的那个模块：升级时不能对同一个模块
+  // 再调一次 Stop，业务不一定可重入
   std::vector<std::string> running;
   for (const auto& kv : modules_) {
+    if (kv.first == skip_ns) {
+      continue;
+    }
     if (kv.second->running()) {
       running.push_back(kv.first);
     }
@@ -1061,8 +1024,9 @@ void V1Server::TickPendingStops(uint64_t now) {
     if (it->conn != nullptr) {
       ReplyError(it->conn, 409, 2007, "stop timeout");
     }
+    const std::string stuck = it->ns;
     pending_stops_.clear();
-    SafeStop("stop_timeout");
+    SafeStop("stop_timeout", "", stuck);
     return;
   }
 }
@@ -1323,24 +1287,6 @@ void V1Server::CheckHeartbeat(uint64_t now) {
   }
 }
 
-std::string V1Server::AddBlob(const std::string& content_type,
-                              const std::vector<uint8_t>& data) {
-  const std::string id = "b-" + std::to_string(++blob_counter_);
-  blobs_[id] = Blob{content_type, data};
-  std::error_code ec;
-  std::filesystem::create_directories("blobs", ec);
-  std::ofstream f("blobs/" + id, std::ios::binary);
-  if (f && !data.empty()) {
-    f.write(reinterpret_cast<const char*>(data.data()),
-            static_cast<std::streamsize>(data.size()));
-  }
-  std::ofstream meta("blobs/" + id + ".meta");
-  if (meta) {
-    meta << content_type;
-  }
-  return id;
-}
-
 void V1Server::LoadConfig() {
   std::ifstream f("v1_config.json");
   if (!f) {
@@ -1371,43 +1317,6 @@ void V1Server::SaveConfig() {
   std::ofstream f("v1_config.json");
   if (f) {
     f << j.dump(2);
-  }
-}
-
-void V1Server::LoadBlobs() {
-  std::error_code ec;
-  if (!std::filesystem::exists("blobs", ec)) {
-    return;
-  }
-  for (const auto& entry : std::filesystem::directory_iterator("blobs", ec)) {
-    if (!entry.is_regular_file()) {
-      continue;
-    }
-    const std::string id = entry.path().filename().string();
-    if (id.size() > 5 && id.substr(id.size() - 5) == ".meta") {
-      continue;
-    }
-    std::ifstream f(entry.path(), std::ios::binary);
-    if (!f) {
-      continue;
-    }
-    std::vector<uint8_t> data((std::istreambuf_iterator<char>(f)),
-                              std::istreambuf_iterator<char>());
-    std::string content_type = "application/octet-stream";
-    std::ifstream meta(entry.path().string() + ".meta");
-    if (meta) {
-      std::getline(meta, content_type);
-    }
-    blobs_[id] = Blob{content_type, data};
-    if (id.rfind("b-", 0) == 0) {
-      try {
-        const int n = std::stoi(id.substr(2));
-        if (n > blob_counter_) {
-          blob_counter_ = n;
-        }
-      } catch (...) {
-      }
-    }
   }
 }
 
